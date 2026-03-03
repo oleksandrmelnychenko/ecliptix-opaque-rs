@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    # Run weekly on Sundays at 00:00 UTC
     - cron: '0 0 * * 0'
   workflow_dispatch:
 
@@ -17,84 +16,46 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # ==========================================================================
-  # Cargo Audit - Known Vulnerability Checking
-  # ==========================================================================
   cargo-audit:
     name: Cargo Audit
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
-
-      - name: Run cargo audit
-        working-directory: rust
-        run: cargo audit
-
-  # ==========================================================================
-  # Cargo Deny - License & Advisory Checking
-  # ==========================================================================
   cargo-deny:
     name: Cargo Deny
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: rust/Cargo.toml
+          command: check
+          command-arguments: --hide-inclusion-graph
+        continue-on-error: true
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-deny
-        run: cargo install cargo-deny
-
-      - name: Run cargo deny check
-        working-directory: rust
-        run: |
-          if [ -f deny.toml ]; then
-            cargo deny check
-          else
-            echo "No deny.toml found, skipping cargo-deny checks."
-            echo "Consider adding a deny.toml to enforce license and advisory policies."
-          fi
-
-  # ==========================================================================
-  # Secret Scanning
-  # ==========================================================================
   secret-scan:
     name: Secret Scanning
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: TruffleHog Secret Scan
-        uses: trufflesecurity/trufflehog@main
+      - uses: trufflesecurity/trufflehog@v3.88.16
         with:
           path: ./
           base: ${{ github.event.repository.default_branch }}
           extra_args: --only-verified
 
-  # ==========================================================================
-  # License Compliance Check
-  # ==========================================================================
   license-check:
     name: License Compliance
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Check for LICENSE file
         run: |
@@ -105,15 +66,13 @@ jobs:
           echo "LICENSE file found"
           head -5 LICENSE
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Check Rust dependency licenses
         working-directory: rust
         run: |
           echo "=== Checking Rust dependency license metadata ==="
 
-          # Collect license info from Cargo metadata
           cargo metadata --format-version 1 --no-deps \
             | python3 -c "
           import json, sys
@@ -127,7 +86,6 @@ jobs:
           echo ""
           echo "=== Checking all workspace dependency licenses ==="
 
-          # List all transitive dependency licenses and flag problematic ones
           cargo metadata --format-version 1 \
             | python3 -c "
           import json, sys

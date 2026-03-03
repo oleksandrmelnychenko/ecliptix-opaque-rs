@@ -12,6 +12,9 @@ on:
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   test-linux:
     name: Test (Linux)
@@ -19,6 +22,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
       - run: cargo test --workspace
         working-directory: rust
 
@@ -28,6 +34,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
       - run: cargo test --workspace
         working-directory: rust
 
@@ -37,6 +46,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
       - run: cargo test --workspace
         working-directory: rust
 
@@ -48,7 +60,35 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
       - run: cargo fmt --check
         working-directory: rust
-      - run: cargo clippy --workspace -- -D warnings
+      - run: cargo clippy --workspace --all-targets -- -D warnings
         working-directory: rust
+
+  security-docs:
+    name: Security Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required security files
+        run: |
+          errors=0
+          for f in SECURITY.md LICENSE CONTRIBUTING.md \
+                   docs/isms/INFORMATION_SECURITY_POLICY.md \
+                   docs/isms/RISK_ASSESSMENT_REGISTER.md \
+                   docs/security-review/THREAT_MODEL.md; do
+            if [ -f "$f" ]; then
+              echo "✓ Found: $f"
+            else
+              echo "✗ Missing: $f"
+              errors=$((errors + 1))
+            fi
+          done
+          if [ $errors -gt 0 ]; then
+            echo ""
+            echo "ERROR: $errors required security file(s) missing"
+            exit 1
+          fi

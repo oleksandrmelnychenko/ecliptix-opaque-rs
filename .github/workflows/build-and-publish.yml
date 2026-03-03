@@ -85,12 +85,20 @@ jobs:
           cargo build --release --package opaque-ffi --target aarch64-apple-ios-sim
           cargo build --release --package opaque-ffi --target x86_64-apple-ios
 
+      - name: Create fat simulator library
+        run: |
+          lipo -create \
+            rust/target/aarch64-apple-ios-sim/release/libopaque_ffi.a \
+            rust/target/x86_64-apple-ios/release/libopaque_ffi.a \
+            -output rust/target/libopaque_ffi_sim.a
+
       - name: Create XCFramework
         run: |
           mkdir -p dist/apple
           xcodebuild -create-xcframework \
             -library rust/target/aarch64-apple-darwin/release/libopaque_ffi.a -headers rust/target/opaque_ffi.h \
             -library rust/target/aarch64-apple-ios/release/libopaque_ffi.a -headers rust/target/opaque_ffi.h \
+            -library rust/target/libopaque_ffi_sim.a -headers rust/target/opaque_ffi.h \
             -output dist/apple/EcliptixOPAQUE.xcframework
           cd dist/apple && zip -r EcliptixOPAQUE.xcframework.zip EcliptixOPAQUE.xcframework
           shasum -a 256 EcliptixOPAQUE.xcframework.zip > EcliptixOPAQUE.xcframework.zip.sha256
@@ -159,7 +167,7 @@ jobs:
           echo "VERSION=${VERSION#v}" >> $GITHUB_OUTPUT
 
       - name: Create release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/apple-xcframework/EcliptixOPAQUE.xcframework.zip
