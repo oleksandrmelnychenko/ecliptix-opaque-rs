@@ -77,9 +77,8 @@ The `opaque-ffi` crate exports a C API via `cbindgen`. Swift bindings in `swift/
 
 | Platform | Package |
 |----------|---------|
-| .NET | `Ecliptix.OPAQUE.Agent` / `Ecliptix.OPAQUE.Relay` (NuGet) |
-| iOS/macOS | `EcliptixOPAQUE.xcframework` |
-| Android | AAR via GitHub Packages |
+| iOS/macOS | `EcliptixOPAQUE.xcframework` (Swift Package Manager) |
+| Android | `.so` via `cargo-ndk` |
 
 ## Formal Verification
 

@@ -4,24 +4,19 @@
 # Default owners for everything in the repo
 * @oleksandrmelnychenko
 
-# Cryptographic core - requires security review
-/src/core/ @oleksandrmelnychenko
-/include/opaque/ @oleksandrmelnychenko
+# Cryptographic core
+/rust/crates/opaque-core/ @oleksandrmelnychenko
 
-# Security documentation - requires security lead review
+# Security documentation
 /SECURITY.md @oleksandrmelnychenko
 /docs/isms/ @oleksandrmelnychenko
 /docs/security-review/ @oleksandrmelnychenko
 
 # Build and release configuration
 /.github/workflows/ @oleksandrmelnychenko
-/CMakeLists.txt @oleksandrmelnychenko
-/cmake/ @oleksandrmelnychenko
 
-# Platform-specific builds
-/nuget/ @oleksandrmelnychenko
-/android/ @oleksandrmelnychenko
+# Swift bindings
 /swift/ @oleksandrmelnychenko
 
-# Tests
-/tests/ @oleksandrmelnychenko
+# Formal verification
+/formal/ @oleksandrmelnychenko
