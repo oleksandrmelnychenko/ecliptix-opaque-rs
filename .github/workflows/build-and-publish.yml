@@ -109,47 +109,9 @@ jobs:
           path: dist/apple/
           retention-days: 30
 
-  build-android:
-    name: Build Android (${{ matrix.abi }})
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - abi: arm64-v8a
-            target: aarch64-linux-android
-          - abi: armeabi-v7a
-            target: armv7-linux-androideabi
-          - abi: x86_64
-            target: x86_64-linux-android
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Install cargo-ndk
-        run: cargo install cargo-ndk
-
-      - name: Build
-        working-directory: rust
-        run: cargo ndk -t ${{ matrix.abi }} build --release --package opaque-ffi
-
-      - name: Prepare artifacts
-        run: |
-          mkdir -p artifacts/android-${{ matrix.abi }}
-          find rust/target/${{ matrix.target }}/release -maxdepth 1 -name "*.so" \
-            -exec cp {} artifacts/android-${{ matrix.abi }}/ \;
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: native-android-${{ matrix.abi }}
-          path: artifacts/android-${{ matrix.abi }}/
-          retention-days: 7
-
   publish-release:
     name: GitHub Release
-    needs: [build-native, build-apple-xcframework, build-android]
+    needs: [build-native, build-apple-xcframework]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -189,6 +151,5 @@ jobs:
             - macOS arm64
             - Windows x64
             - iOS (arm64, simulator)
-            - Android (arm64-v8a, armeabi-v7a, x86_64)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
