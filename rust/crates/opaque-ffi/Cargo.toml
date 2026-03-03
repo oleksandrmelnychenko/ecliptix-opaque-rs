@@ -1,0 +1,20 @@
+[package]
+name = "opaque-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+opaque-core = { workspace = true }
+opaque-agent = { workspace = true }
+opaque-relay = { workspace = true }
+zeroize = { workspace = true }
+
+[build-dependencies]
+cbindgen = "0.27"

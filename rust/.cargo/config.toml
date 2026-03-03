@@ -1,0 +1,22 @@
+# Hardware crypto acceleration for cache-safe constant-time operations.
+#
+# Apple Silicon: +sha2 enables hardware SHA-512 (ARM SHA extensions).
+# x86_64: +sha enables SHA-NI; +avx2 enables SIMD for curve25519-dalek.
+#
+# XSalsa20-Poly1305 (stream cipher) does not use lookup tables and is
+# inherently cache-timing safe on all platforms.
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "target-feature=+aes,+sha2"]
+
+[target.aarch64-apple-ios]
+rustflags = ["-C", "target-feature=+aes,+sha2"]
+
+[target.aarch64-apple-ios-sim]
+rustflags = ["-C", "target-feature=+aes,+sha2"]
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-feature=+aes,+ssse3"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "target-feature=+aes,+ssse3"]
