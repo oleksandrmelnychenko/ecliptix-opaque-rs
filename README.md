@@ -20,6 +20,29 @@ All seven properties are formally verified (Tamarin 8/8 lemmas, ProVerif 5/5 que
 | AND-model hybrid security | verified | - | 4 |
 | Offline dictionary resistance | verified | verified | 6 |
 
+## Attack Coverage
+
+Tested against 10 attack classes with 34 deterministic tests + 5 property-based (fuzz) tests:
+
+| Attack | Protection | Tests |
+|--------|-----------|-------|
+| **Offline dictionary** | Argon2id hardness + server-side OPRF key | 6 |
+| **Server impersonation (MITM)** | KE2 MAC verification, 4DH mutual auth | 4 |
+| **Client impersonation** | KE3 MAC verification | 2 |
+| **Replay attack** | Fresh ephemeral keys + nonce binding per session | 2 |
+| **Transcript tampering** | HMAC-SHA512 on all KE messages, detected at every byte position | 4 + 2 fuzz |
+| **Forward secrecy (classical)** | Ephemeral 4DH — past sessions safe after LTK compromise | 3 |
+| **Forward secrecy (post-quantum)** | ML-KEM-768 ephemeral encapsulation | 3 |
+| **Quantum key recovery** | ML-KEM-768 protects if DH is broken | 3 |
+| **AND-model violation** | HKDF-SHA512 combiner — both DH and KEM must break | 4 |
+| **Password leakage** | OPRF blinding, password absent from all wire messages | 7 |
+
+**Property-based tests** (proptest) verify with randomized inputs that:
+- Any wrong password always fails authentication
+- Any single-byte tampering of KE2 (at every offset) is always detected
+- Any single-byte tampering of KE3 (at every offset) is always detected
+- Different sessions always produce different session keys
+
 ## Cryptographic Primitives
 
 | Primitive | Algorithm | Crate |
