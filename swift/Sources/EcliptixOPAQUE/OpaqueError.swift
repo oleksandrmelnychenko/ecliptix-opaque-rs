@@ -1,14 +1,27 @@
 import Foundation
 
+/// Errors produced by the Ecliptix OPAQUE protocol.
+///
+/// Maps directly to the native FFI return codes. Use `localizedDescription`
+/// for human-readable messages suitable for logging.
 public enum OpaqueError: Error, LocalizedError, Sendable {
+    /// ``OpaqueAgent/initialize()`` has not been called yet.
     case notInitialized
+    /// A parameter was invalid (details in the associated string).
     case invalidInput(String)
+    /// A low-level cryptographic operation failed.
     case cryptoError(String)
+    /// Memory allocation failed.
     case memoryError
+    /// Protocol validation failed (wrong phase or expired state).
     case validationError
+    /// Authentication failed — wrong password or message tampering detected.
     case authenticationError
+    /// The supplied public key is not a valid Ristretto255 point.
     case invalidPublicKey
+    /// The handle has been destroyed or is otherwise unusable.
     case invalidState
+    /// An unmapped native error code.
     case unknown(Int32)
 
     public var errorDescription: String? {
