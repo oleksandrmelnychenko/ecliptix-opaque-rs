@@ -139,11 +139,7 @@ impl OprfEvaluator for InMemoryEvaluator {
     fn derive_fake_material(&self, account_id: &[u8]) -> OpaqueResult<[u8; HASH_LENGTH]> {
         let mut seed = [0u8; HASH_LENGTH];
         crypto::sha512_multi(
-            &[
-                FAKE_CREDENTIALS_CONTEXT,
-                &self.oprf_seed,
-                account_id,
-            ],
+            &[FAKE_CREDENTIALS_CONTEXT, &self.oprf_seed, account_id],
             &mut seed,
         );
         Ok(seed)
