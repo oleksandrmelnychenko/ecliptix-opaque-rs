@@ -225,8 +225,9 @@ pub unsafe extern "C" fn opaque_agent_create(
             return OpaqueError::InvalidInput.to_c_int();
         }
         let key = std::slice::from_raw_parts(relay_public_key, key_length);
-        let Ok(initiator) = OpaqueInitiator::new(key) else {
-            return OpaqueError::InvalidInput.to_c_int();
+        let initiator = match OpaqueInitiator::new(key) {
+            Ok(i) => i,
+            Err(e) => return e.to_c_int(),
         };
         let boxed = Box::new(AgentHandle {
             initiator,
@@ -478,11 +479,11 @@ pub unsafe extern "C" fn opaque_agent_finalize_registration(
 /// **Authentication step 1/3.** Generates the first key-exchange message (KE1).
 ///
 /// Produces a 1273-byte KE1 message containing:
+/// - Protocol version prefix (1 byte)
 /// - OPRF-blinded credential request (32 bytes)
 /// - Ephemeral Ristretto255 public key (32 bytes)
 /// - Random nonce (24 bytes)
 /// - Ephemeral ML-KEM-768 public key (1184 bytes)
-/// - Protocol version prefix (1 byte)
 ///
 /// The KE1 must be sent to the server along with the user's account identifier.
 ///
@@ -490,7 +491,7 @@ pub unsafe extern "C" fn opaque_agent_finalize_registration(
 ///
 /// | Name               | Type          | Size        | Description                          |
 /// |--------------------|---------------|-------------|--------------------------------------|
-/// | `agent_handle`     | `*mut void`   | —           | Agent handle (unused but reserved)   |
+/// | `agent_handle`     | `*mut void`   | —           | Agent handle from `opaque_agent_create` |
 /// | `secure_key`       | `*const u8`   | 1–4096      | User's password (raw bytes)          |
 /// | `secure_key_length`| `usize`       | —           | Length of password in bytes           |
 /// | `state_handle`     | `*mut void`   | —           | Fresh state from `opaque_agent_state_create` |
