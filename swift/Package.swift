@@ -24,7 +24,7 @@ let package = Package(
         .binaryTarget(
             name: "EcliptixOPAQUEBinary",
             url: "https://github.com/oleksandrmelnychenko/ecliptix-opaque-rs/releases/download/v1.0.0/EcliptixOPAQUE.xcframework.zip",
-            checksum: "fd4aad38057d2aa6406a8e59af7517402b49bb4ae96a0e1cb855a771001d056a"
+            checksum: "172b44f0de4208f5070338d68cbddeb5a50b4bc7dbd1aed07b8dabdbaebab6ad"
         )
     ]
 )
