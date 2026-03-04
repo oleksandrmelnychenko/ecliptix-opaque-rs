@@ -85,6 +85,12 @@ jobs:
           cargo build --release --package opaque-ffi --target aarch64-apple-ios-sim
           cargo build --release --package opaque-ffi --target x86_64-apple-ios
 
+      - name: Generate C header via cbindgen
+        working-directory: rust
+        run: |
+          cargo install cbindgen --locked
+          cbindgen --crate opaque-ffi --output target/include/opaque_ffi.h
+
       - name: Create fat simulator library
         run: |
           lipo -create \
@@ -96,9 +102,9 @@ jobs:
         run: |
           mkdir -p dist/apple
           xcodebuild -create-xcframework \
-            -library rust/target/aarch64-apple-darwin/release/libopaque_ffi.a -headers rust/target/opaque_ffi.h \
-            -library rust/target/aarch64-apple-ios/release/libopaque_ffi.a -headers rust/target/opaque_ffi.h \
-            -library rust/target/libopaque_ffi_sim.a -headers rust/target/opaque_ffi.h \
+            -library rust/target/aarch64-apple-darwin/release/libopaque_ffi.a -headers rust/target/include \
+            -library rust/target/aarch64-apple-ios/release/libopaque_ffi.a -headers rust/target/include \
+            -library rust/target/libopaque_ffi_sim.a -headers rust/target/include \
             -output dist/apple/EcliptixOPAQUE.xcframework
           cd dist/apple && zip -r EcliptixOPAQUE.xcframework.zip EcliptixOPAQUE.xcframework
           shasum -a 256 EcliptixOPAQUE.xcframework.zip > EcliptixOPAQUE.xcframework.zip.sha256
