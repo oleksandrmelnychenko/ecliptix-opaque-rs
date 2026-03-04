@@ -1,11 +1,12 @@
 // swift-tools-version: 6.0
+
 import PackageDescription
 
 let package = Package(
     name: "EcliptixOPAQUE",
     platforms: [
-        .iOS(.v17),
-        .macOS(.v14)
+        .iOS(.v18),
+        .macOS(.v15)
     ],
     products: [
         .library(
@@ -17,7 +18,7 @@ let package = Package(
         .binaryTarget(
             name: "EcliptixOPAQUEBinary",
             url: "https://github.com/oleksandrmelnychenko/ecliptix-opaque-rs/releases/download/v1.0.0/EcliptixOPAQUE.xcframework.zip",
-            checksum: "c742e7035868312d16c86b19e2a37ed8fa5eb01ef7d79ac5df20b2d3f0da791e"
+            checksum: "172b44f0de4208f5070338d68cbddeb5a50b4bc7dbd1aed07b8dabdbaebab6ad"
         ),
         .target(
             name: "EcliptixOPAQUE",
