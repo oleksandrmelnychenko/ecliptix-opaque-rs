@@ -21,18 +21,10 @@ let package = Package(
             path: "Sources/EcliptixOPAQUE"
         ),
 
-        // Binary target — XCFramework built from Rust via cargo-lipo / cargo-xcode
-        // For local development:
         .binaryTarget(
             name: "EcliptixOPAQUEBinary",
-            path: "../dist/apple/EcliptixOPAQUE.xcframework"
+            url: "https://github.com/oleksandrmelnychenko/ecliptix-opaque-rs/releases/download/v1.0.0/EcliptixOPAQUE.xcframework.zip",
+            checksum: "7bc21e1e96c015353a4543e6c3b7a91ff926004f97f8c8d9f12040635d852fc7"
         )
-
-        // For release distribution via GitHub Releases:
-        // .binaryTarget(
-        //     name: "EcliptixOPAQUEBinary",
-        //     url: "https://github.com/oleksandrmelnychenko/ecliptix-opaque-rs/releases/download/vX.Y.Z/EcliptixOPAQUE.xcframework.zip",
-        //     checksum: "<SHA256_CHECKSUM>"
-        // )
     ]
 )
