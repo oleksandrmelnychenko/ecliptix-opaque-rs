@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::crypto;
-use crate::types::{pq, pq_labels, OpaqueError, OpaqueResult, HASH_LENGTH};
+use crate::types::{pq, pq_labels, OpaqueError, OpaqueResult, CLASSICAL_IKM_LENGTH, HASH_LENGTH};
 use ml_kem::{EncodedSizeUser, KemCore, MlKem768};
 use zeroize::Zeroize;
 
@@ -106,7 +106,7 @@ pub fn combine_key_material(
     transcript_hash: &[u8],
     prk: &mut [u8; HASH_LENGTH],
 ) -> OpaqueResult<()> {
-    if classical_ikm.len() != 128
+    if classical_ikm.len() != CLASSICAL_IKM_LENGTH
         || pq_shared_secret.len() != pq::KEM_SHARED_SECRET_LENGTH
         || transcript_hash.len() != HASH_LENGTH
     {
@@ -114,8 +114,8 @@ pub fn combine_key_material(
     }
 
     let mut combined_ikm = [0u8; pq::COMBINED_IKM_LENGTH];
-    combined_ikm[..128].copy_from_slice(classical_ikm);
-    combined_ikm[128..].copy_from_slice(pq_shared_secret);
+    combined_ikm[..CLASSICAL_IKM_LENGTH].copy_from_slice(classical_ikm);
+    combined_ikm[CLASSICAL_IKM_LENGTH..].copy_from_slice(pq_shared_secret);
 
     const LABEL_LEN: usize = pq_labels::PQ_COMBINER_CONTEXT.len();
     let mut labeled_transcript = [0u8; LABEL_LEN + HASH_LENGTH];

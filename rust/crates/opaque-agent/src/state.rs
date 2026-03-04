@@ -6,11 +6,9 @@ use std::time::Instant;
 use opaque_core::types::{
     pq, OpaqueResult, ENVELOPE_LENGTH, HASH_LENGTH, MAC_LENGTH, MASTER_KEY_LENGTH,
     MAX_SECURE_KEY_LENGTH, NONCE_LENGTH, PRIVATE_KEY_LENGTH, PUBLIC_KEY_LENGTH,
-    REGISTRATION_REQUEST_LENGTH,
+    REGISTRATION_REQUEST_LENGTH, STATE_MAX_LIFETIME_SECS,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
-
-const STATE_MAX_LIFETIME_SECS: u64 = 300;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InitiatorPhase {

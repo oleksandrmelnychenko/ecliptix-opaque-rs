@@ -7,7 +7,7 @@ use opaque_core::oprf::{InMemoryEvaluator, OprfEvaluator};
 use opaque_core::types::{
     constant_time_eq, pq, OpaqueError, OpaqueResult, CREDENTIAL_RESPONSE_LENGTH, ENVELOPE_LENGTH,
     HASH_LENGTH, MAC_LENGTH, MASTER_KEY_LENGTH, NONCE_LENGTH, OPRF_SEED_LENGTH, PRIVATE_KEY_LENGTH,
-    PUBLIC_KEY_LENGTH, REGISTRATION_RESPONSE_LENGTH,
+    PUBLIC_KEY_LENGTH, REGISTRATION_RESPONSE_LENGTH, STATE_MAX_LIFETIME_SECS,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -19,8 +19,6 @@ pub enum ResponderPhase {
 
     Finished,
 }
-
-const STATE_MAX_LIFETIME_SECS: u64 = 300;
 
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct ResponderState {

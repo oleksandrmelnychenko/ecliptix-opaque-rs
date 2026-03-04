@@ -42,6 +42,12 @@ pub const CREDENTIAL_RESPONSE_LENGTH: usize = 168;
 
 pub const MAX_SECURE_KEY_LENGTH: usize = 4096;
 
+pub const DH_COMPONENT_COUNT: usize = 4;
+
+pub const CLASSICAL_IKM_LENGTH: usize = DH_COMPONENT_COUNT * PUBLIC_KEY_LENGTH;
+
+pub const STATE_MAX_LIFETIME_SECS: u64 = 300;
+
 pub const KE1_BASE_LENGTH: usize = REGISTRATION_REQUEST_LENGTH + PUBLIC_KEY_LENGTH + NONCE_LENGTH;
 
 pub const KE2_BASE_LENGTH: usize =
@@ -57,7 +63,7 @@ pub mod pq {
 
     pub const KEM_SHARED_SECRET_LENGTH: usize = 32;
 
-    pub const COMBINED_IKM_LENGTH: usize = 128 + KEM_SHARED_SECRET_LENGTH;
+    pub const COMBINED_IKM_LENGTH: usize = super::CLASSICAL_IKM_LENGTH + KEM_SHARED_SECRET_LENGTH;
 }
 
 pub const KE1_PAYLOAD_LENGTH: usize = KE1_BASE_LENGTH + pq::KEM_PUBLIC_KEY_LENGTH;
@@ -124,6 +130,8 @@ pub mod labels {
     pub const INITIATOR_MAC_INFO: &[u8] = b"ECLIPTIX-OPAQUE-v1/InitiatorMAC";
 
     pub const DERIVE_KEYPAIR_CONTEXT: &[u8] = b"ECLIPTIX-OPAQUE-v1/DeriveKeyPair";
+
+    pub const FAKE_CREDENTIALS_CONTEXT: &[u8] = b"ECLIPTIX-OPAQUE-v1/FakeCredentials";
 }
 
 pub mod pq_labels {

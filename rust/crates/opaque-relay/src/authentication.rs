@@ -3,8 +3,9 @@
 
 use opaque_core::types::{
     constant_time_eq, ct_select_bytes, labels, pq, pq_labels, OpaqueError, OpaqueResult,
-    CREDENTIAL_RESPONSE_LENGTH, ENVELOPE_LENGTH, HASH_LENGTH, KE1_LENGTH, KE3_LENGTH, MAC_LENGTH,
-    MASTER_KEY_LENGTH, NONCE_LENGTH, PRIVATE_KEY_LENGTH, PUBLIC_KEY_LENGTH,
+    CLASSICAL_IKM_LENGTH, CREDENTIAL_RESPONSE_LENGTH, DH_COMPONENT_COUNT, ENVELOPE_LENGTH,
+    HASH_LENGTH, KE1_LENGTH, KE3_LENGTH, MAC_LENGTH, MASTER_KEY_LENGTH, NONCE_LENGTH,
+    PRIVATE_KEY_LENGTH, PUBLIC_KEY_LENGTH,
 };
 use opaque_core::{crypto, pq_kem, protocol};
 use zeroize::Zeroize;
@@ -13,7 +14,7 @@ use crate::state::{
     Ke2Message, OpaqueResponder, ResponderCredentials, ResponderPhase, ResponderState,
 };
 
-const FAKE_CREDENTIALS_CONTEXT: &[u8] = b"ECLIPTIX-OPAQUE-v1/FakeCredentials";
+use opaque_core::types::labels::FAKE_CREDENTIALS_CONTEXT;
 
 fn derive_fake_credentials(
     responder: &OpaqueResponder,
@@ -141,14 +142,14 @@ pub fn generate_ke2(
     )?;
     state.pq_shared_secret = kem_ss;
 
-    let mut classical_ikm = [0u8; 4 * PUBLIC_KEY_LENGTH];
+    let mut classical_ikm = [0u8; CLASSICAL_IKM_LENGTH];
     classical_ikm[..PUBLIC_KEY_LENGTH].copy_from_slice(&dh1);
     classical_ikm[PUBLIC_KEY_LENGTH..2 * PUBLIC_KEY_LENGTH].copy_from_slice(&dh2);
     classical_ikm[2 * PUBLIC_KEY_LENGTH..3 * PUBLIC_KEY_LENGTH].copy_from_slice(&dh3);
     classical_ikm[3 * PUBLIC_KEY_LENGTH..].copy_from_slice(&dh4);
 
     let mac_input_size = 2 * NONCE_LENGTH
-        + 4 * PUBLIC_KEY_LENGTH
+        + DH_COMPONENT_COUNT * PUBLIC_KEY_LENGTH
         + CREDENTIAL_RESPONSE_LENGTH
         + pq::KEM_CIPHERTEXT_LENGTH
         + pq::KEM_PUBLIC_KEY_LENGTH;

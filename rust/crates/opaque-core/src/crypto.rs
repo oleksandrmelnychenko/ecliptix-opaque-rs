@@ -261,7 +261,7 @@ pub fn derive_oprf_key(
         mac.update(&[counter]);
         mac_out.copy_from_slice(&mac.finalize().into_bytes());
 
-        let mac_ref: &[u8; 64] = mac_out
+        let mac_ref: &[u8; MAC_LENGTH] = mac_out
             .as_slice()
             .try_into()
             .map_err(|_| OpaqueError::CryptoError)?;

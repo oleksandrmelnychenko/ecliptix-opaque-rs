@@ -6,6 +6,7 @@ use crate::types::{
     labels, OpaqueError, OpaqueResult, HASH_LENGTH, OPRF_SEED_LENGTH, PRIVATE_KEY_LENGTH,
     PUBLIC_KEY_LENGTH,
 };
+use labels::FAKE_CREDENTIALS_CONTEXT;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 const HASH_TO_GROUP_DOMAIN: u8 = 0x00;
@@ -139,7 +140,7 @@ impl OprfEvaluator for InMemoryEvaluator {
         let mut seed = [0u8; HASH_LENGTH];
         crypto::sha512_multi(
             &[
-                b"ECLIPTIX-OPAQUE-v1/FakeCredentials" as &[u8],
+                FAKE_CREDENTIALS_CONTEXT,
                 &self.oprf_seed,
                 account_id,
             ],
