@@ -334,8 +334,8 @@ pub unsafe extern "C" fn opaque_agent_state_destroy(handle_ptr: *mut *mut std::f
 /// **Registration step 1/2.** Creates an OPRF-blinded registration request from the
 /// user's password.
 ///
-/// The output `request_out` (32 bytes) must be sent to the server, which will respond
-/// with a 64-byte registration response.
+/// The output `request_out` (33 bytes) must be sent to the server, which will respond
+/// with a 65-byte registration response.
 ///
 /// # Parameters
 ///
@@ -402,7 +402,7 @@ pub unsafe extern "C" fn opaque_agent_create_registration_request(
 /// **Registration step 2/2.** Finalizes registration by creating an encrypted envelope
 /// (the registration record).
 ///
-/// Takes the server's 64-byte registration response and produces a 169-byte registration
+/// Takes the server's 65-byte registration response and produces a 169-byte registration
 /// record. The record must be sent to the server for storage — it contains the encrypted
 /// envelope and the client's static public key. The server cannot decrypt the envelope.
 ///
