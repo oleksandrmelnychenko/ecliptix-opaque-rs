@@ -118,3 +118,92 @@ fn write_ke2_buffer_too_small_fails() {
 
     assert!(protocol::write_ke2(&nonce, &rpk, &cred, &mac, &ct, &mut buf).is_err());
 }
+
+fn assert_unsupported_version(result: Result<impl Sized, OpaqueError>) {
+    match result {
+        Err(OpaqueError::UnsupportedVersion) => {}
+        Err(other) => panic!("expected UnsupportedVersion, got {other:?}"),
+        Ok(_) => panic!("expected UnsupportedVersion error, got Ok"),
+    }
+}
+
+#[test]
+fn version_mismatch_registration_request_rejected() {
+    let payload = [0x42u8; REGISTRATION_REQUEST_LENGTH];
+    let mut buf = vec![0u8; REGISTRATION_REQUEST_WIRE_LENGTH];
+    protocol::write_registration_request(&payload, &mut buf).unwrap();
+
+    for bad_version in [0x00, 0x02, 0x0F, 0xFF] {
+        buf[0] = bad_version;
+        assert_unsupported_version(protocol::parse_registration_request(&buf));
+    }
+}
+
+#[test]
+fn version_mismatch_registration_response_rejected() {
+    let elem = [0x01u8; REGISTRATION_REQUEST_LENGTH];
+    let rpk = [0x02u8; PUBLIC_KEY_LENGTH];
+    let mut buf = vec![0u8; REGISTRATION_RESPONSE_WIRE_LENGTH];
+    protocol::write_registration_response(&elem, &rpk, &mut buf).unwrap();
+
+    for bad_version in [0x00, 0x02, 0xFF] {
+        buf[0] = bad_version;
+        assert_unsupported_version(protocol::parse_registration_response(&buf));
+    }
+}
+
+#[test]
+fn version_mismatch_registration_record_rejected() {
+    let envelope = [0x42u8; ENVELOPE_LENGTH];
+    let ipk = [0x43u8; PUBLIC_KEY_LENGTH];
+    let mut buf = vec![0u8; REGISTRATION_RECORD_LENGTH];
+    protocol::write_registration_record(&envelope, &ipk, &mut buf).unwrap();
+
+    buf[0] = 0x00;
+    assert_unsupported_version(protocol::parse_registration_record(&buf));
+    buf[0] = 0x02;
+    assert_unsupported_version(protocol::parse_registration_record(&buf));
+}
+
+#[test]
+fn version_mismatch_ke1_rejected() {
+    let cred_req = [0x01u8; REGISTRATION_REQUEST_LENGTH];
+    let ipk = [0x02u8; PUBLIC_KEY_LENGTH];
+    let nonce = [0x03u8; NONCE_LENGTH];
+    let pq_pk = vec![0x04u8; pq::KEM_PUBLIC_KEY_LENGTH];
+    let mut buf = vec![0u8; KE1_LENGTH];
+    protocol::write_ke1(&cred_req, &ipk, &nonce, &pq_pk, &mut buf).unwrap();
+
+    for bad_version in [0x00, 0x02, 0xFF] {
+        buf[0] = bad_version;
+        assert_unsupported_version(protocol::parse_ke1(&buf));
+    }
+}
+
+#[test]
+fn version_mismatch_ke2_rejected() {
+    let nonce = [0x01u8; NONCE_LENGTH];
+    let rpk = [0x02u8; PUBLIC_KEY_LENGTH];
+    let cred_resp = [0x03u8; CREDENTIAL_RESPONSE_LENGTH];
+    let mac = [0x04u8; MAC_LENGTH];
+    let kem_ct = vec![0x05u8; pq::KEM_CIPHERTEXT_LENGTH];
+    let mut buf = vec![0u8; KE2_LENGTH];
+    protocol::write_ke2(&nonce, &rpk, &cred_resp, &mac, &kem_ct, &mut buf).unwrap();
+
+    for bad_version in [0x00, 0x02, 0xFF] {
+        buf[0] = bad_version;
+        assert_unsupported_version(protocol::parse_ke2(&buf));
+    }
+}
+
+#[test]
+fn version_mismatch_ke3_rejected() {
+    let mac = [0x42u8; MAC_LENGTH];
+    let mut buf = vec![0u8; KE3_LENGTH];
+    protocol::write_ke3(&mac, &mut buf).unwrap();
+
+    for bad_version in [0x00, 0x02, 0xFF] {
+        buf[0] = bad_version;
+        assert_unsupported_version(protocol::parse_ke3(&buf));
+    }
+}

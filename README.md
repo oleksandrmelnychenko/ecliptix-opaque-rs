@@ -22,7 +22,7 @@ All seven properties are formally verified (Tamarin 8/8 lemmas, ProVerif 5/5 que
 
 ## Attack Coverage
 
-Tested against 10 attack classes with 34 deterministic tests + 5 property-based (fuzz) tests:
+Tested against 11 attack classes with 40 deterministic tests + 5 property-based (fuzz) tests:
 
 | Attack | Protection | Tests |
 |--------|-----------|-------|
@@ -36,6 +36,7 @@ Tested against 10 attack classes with 34 deterministic tests + 5 property-based 
 | **Quantum key recovery** | ML-KEM-768 protects if DH is broken | 3 |
 | **AND-model violation** | HKDF-SHA512 combiner — both DH and KEM must break | 4 |
 | **Password leakage** | OPRF blinding, password absent from all wire messages | 7 |
+| **Version downgrade** | 1-byte version prefix, no negotiation, unknown versions rejected | 6 |
 
 **Property-based tests** (proptest) verify with randomized inputs that:
 - Any wrong password always fails authentication
