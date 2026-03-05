@@ -11,7 +11,7 @@ let package = Package(
     products: [
         .library(
             name: "EcliptixOPAQUE",
-            targets: ["EcliptixOPAQUESwift"]
+            targets: ["EcliptixOPAQUESwift", "EcliptixOPAQUE"]
         )
     ],
     targets: [
