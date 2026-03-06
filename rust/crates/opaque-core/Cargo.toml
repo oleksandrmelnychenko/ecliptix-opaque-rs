@@ -3,6 +3,7 @@ name = "opaque-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish.workspace = true
 
 [dependencies]
 curve25519-dalek = { workspace = true }
