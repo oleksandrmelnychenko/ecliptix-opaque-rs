@@ -35,6 +35,7 @@ import Foundation
 /// ```
 public final class OpaqueAgent: @unchecked Sendable {
 
+    // Swift imports pointers to incomplete C struct types as OpaquePointer.
     private var handle: OpaquePointer?
     private let lock = NSLock()
 
@@ -52,9 +53,9 @@ public final class OpaqueAgent: @unchecked Sendable {
         if isInitialized { return }
 
         let result = opaque_init()
-        guard result == 0 else {
+        guard result.rawValue == 0 else {
             throw OpaqueError.cryptoError(
-                "Failed to initialize cryptographic library (code: \(result))"
+                "Failed to initialize cryptographic library (code: \(result.rawValue))"
             )
         }
 
@@ -101,7 +102,7 @@ public final class OpaqueAgent: @unchecked Sendable {
             )
         }
 
-        guard result == 0, let h = rawHandle else {
+        guard result.rawValue == 0, let h = rawHandle else {
             throw OpaqueError.from(&err)
         }
         self.handle = h
@@ -152,7 +153,7 @@ public final class OpaqueAgent: @unchecked Sendable {
             }
         }
 
-        guard result == 0 else { throw OpaqueError.from(&err) }
+        guard result.rawValue == 0 else { throw OpaqueError.from(&err) }
         return request
     }
 
@@ -188,7 +189,7 @@ public final class OpaqueAgent: @unchecked Sendable {
             }
         }
 
-        guard result == 0 else { throw OpaqueError.from(&err) }
+        guard result.rawValue == 0 else { throw OpaqueError.from(&err) }
         return record
     }
 
@@ -222,7 +223,7 @@ public final class OpaqueAgent: @unchecked Sendable {
             }
         }
 
-        guard result == 0 else { throw OpaqueError.from(&err) }
+        guard result.rawValue == 0 else { throw OpaqueError.from(&err) }
         return ke1
     }
 
@@ -256,7 +257,7 @@ public final class OpaqueAgent: @unchecked Sendable {
             }
         }
 
-        guard result == 0 else { throw OpaqueError.from(&err) }
+        guard result.rawValue == 0 else { throw OpaqueError.from(&err) }
         return ke3
     }
 
@@ -292,7 +293,7 @@ public final class OpaqueAgent: @unchecked Sendable {
             }
         }
 
-        guard result == 0 else { throw OpaqueError.from(&err) }
+        guard result.rawValue == 0 else { throw OpaqueError.from(&err) }
         return AuthenticationKeys(sessionKey: sessionKey, masterKey: masterKey)
     }
 }
@@ -313,7 +314,7 @@ extension OpaqueAgent {
             var err = COpaqueError()
             let result = opaque_agent_state_create(&rawHandle, &err)
 
-            guard result == 0, let h = rawHandle else {
+            guard result.rawValue == 0, let h = rawHandle else {
                 throw OpaqueError.from(&err)
             }
             self.handle = h
