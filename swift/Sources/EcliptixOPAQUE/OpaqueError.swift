@@ -1,9 +1,6 @@
 import Foundation
 
 /// Errors produced by the Ecliptix OPAQUE protocol.
-///
-/// Maps directly to the native FFI return codes. Use `localizedDescription`
-/// for human-readable messages suitable for logging.
 public enum OpaqueError: Error, LocalizedError, Sendable {
     /// ``OpaqueAgent/initialize()`` has not been called yet.
     case notInitialized
@@ -11,8 +8,6 @@ public enum OpaqueError: Error, LocalizedError, Sendable {
     case invalidInput(String)
     /// A low-level cryptographic operation failed.
     case cryptoError(String)
-    /// Memory allocation failed.
-    case memoryError
     /// Protocol validation failed (wrong phase or expired state).
     case validationError
     /// Authentication failed — wrong password or message tampering detected.
@@ -32,8 +27,6 @@ public enum OpaqueError: Error, LocalizedError, Sendable {
             return "Invalid input: \(details)"
         case .cryptoError(let details):
             return "Cryptographic error: \(details)"
-        case .memoryError:
-            return "Memory allocation failed"
         case .validationError:
             return "Validation failed"
         case .authenticationError:
@@ -47,32 +40,38 @@ public enum OpaqueError: Error, LocalizedError, Sendable {
         }
     }
 
-    internal static func fromCode(_ code: Int32) -> OpaqueError {
+    /// Creates an `OpaqueError` from a C `COpaqueError` struct returned by the library.
+    ///
+    /// Reads `error.message` for a detailed description (if present), then frees the
+    /// library-allocated string via `opaque_error_free`.
+    internal static func from(_ error: inout COpaqueError) -> OpaqueError {
+        let detail: String
+        if let msg = error.message {
+            detail = String(cString: msg)
+            opaque_error_free(&error)
+        } else if let staticMsg = opaque_error_string(error.code) {
+            detail = String(cString: staticMsg)
+        } else {
+            detail = "code \(error.code)"
+        }
+        return fromCode(error.code, detail: detail)
+    }
+
+    internal static func fromCode(_ code: Int32, detail: String = "") -> OpaqueError {
         switch code {
-        case 0:
-            return .invalidState
-        case -1:
-            return .invalidInput("Invalid parameters")
-        case -2:
-            return .cryptoError("Cryptographic operation failed")
-        case -3:
-            return .invalidInput("Invalid protocol message")
-        case -4:
-            return .validationError
-        case -5:
-            return .authenticationError
-        case -6:
-            return .invalidPublicKey
-        case -7:
-            return .invalidInput("Account already registered")
-        case -8:
-            return .cryptoError("Invalid KEM input")
-        case -9:
-            return .cryptoError("Invalid envelope format")
-        case -99:
-            return .cryptoError("Internal FFI panic")
-        default:
-            return .unknown(code)
+        case  0: return .invalidState           // success returned as error is a logic bug
+        case -1: return .invalidInput(detail.isEmpty ? "Invalid parameters" : detail)
+        case -2: return .cryptoError(detail.isEmpty ? "Cryptographic operation failed" : detail)
+        case -3: return .invalidInput(detail.isEmpty ? "Invalid protocol message" : detail)
+        case -4: return .validationError
+        case -5: return .authenticationError
+        case -6: return .invalidPublicKey
+        case -7: return .invalidInput(detail.isEmpty ? "Account already registered" : detail)
+        case -8: return .cryptoError(detail.isEmpty ? "Invalid KEM input" : detail)
+        case -9: return .cryptoError(detail.isEmpty ? "Invalid envelope format" : detail)
+        case -99:  return .cryptoError(detail.isEmpty ? "Internal FFI panic" : detail)
+        case -100: return .invalidState
+        default:   return .unknown(code)
         }
     }
 }

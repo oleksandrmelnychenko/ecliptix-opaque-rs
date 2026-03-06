@@ -33,11 +33,6 @@ import Foundation
 /// keys.dispose()
 /// loginState.dispose()
 /// ```
-///
-/// ## Thread Safety
-///
-/// Each handle carries an internal lock. Concurrent calls on the *same* handle
-/// are serialized. Different handles can be used from different threads freely.
 public final class OpaqueAgent: @unchecked Sendable {
 
     private var handle: OpaquePointer?
@@ -50,8 +45,6 @@ public final class OpaqueAgent: @unchecked Sendable {
     ///
     /// Must be called once before creating any `OpaqueAgent` instances.
     /// Safe to call multiple times — subsequent calls are no-ops.
-    ///
-    /// - Throws: ``OpaqueError/cryptoError(_:)`` if native initialization fails.
     public static func initialize() throws {
         initLock.lock()
         defer { initLock.unlock() }
@@ -59,28 +52,20 @@ public final class OpaqueAgent: @unchecked Sendable {
         if isInitialized { return }
 
         let result = opaque_init()
-        guard result >= 0 else {
-            throw OpaqueError.cryptoError("Failed to initialize cryptographic library")
+        guard result == 0 else {
+            throw OpaqueError.cryptoError("Failed to initialize cryptographic library (code: \(result))")
         }
 
         isInitialized = true
 
-        precondition(
-            opaque_get_ke1_length() == Constants.ke1Length,
-            "KE1 length mismatch: Swift=\(Constants.ke1Length), Rust=\(opaque_get_ke1_length())"
-        )
-        precondition(
-            opaque_get_ke2_length() == Constants.ke2Length,
-            "KE2 length mismatch: Swift=\(Constants.ke2Length), Rust=\(opaque_get_ke2_length())"
-        )
-        precondition(
-            opaque_get_ke3_length() == Constants.ke3Length,
-            "KE3 length mismatch: Swift=\(Constants.ke3Length), Rust=\(opaque_get_ke3_length())"
-        )
-        precondition(
-            opaque_get_registration_record_length() == Constants.registrationRecordLength,
-            "Registration record length mismatch"
-        )
+        precondition(opaque_get_ke1_length() == Constants.ke1Length,
+                     "KE1 length mismatch: Swift=\(Constants.ke1Length), Rust=\(opaque_get_ke1_length())")
+        precondition(opaque_get_ke2_length() == Constants.ke2Length,
+                     "KE2 length mismatch: Swift=\(Constants.ke2Length), Rust=\(opaque_get_ke2_length())")
+        precondition(opaque_get_ke3_length() == Constants.ke3Length,
+                     "KE3 length mismatch: Swift=\(Constants.ke3Length), Rust=\(opaque_get_ke3_length())")
+        precondition(opaque_get_registration_record_length() == Constants.registrationRecordLength,
+                     "Registration record length mismatch")
     }
 
     internal static var initialized: Bool {
@@ -91,321 +76,263 @@ public final class OpaqueAgent: @unchecked Sendable {
 
     /// Creates a new agent bound to a relay's static public key.
     ///
-    /// - Parameter relayPublicKey: The relay's 32-byte Ristretto255 public key,
-    ///   typically pinned in the app or fetched over TLS during setup.
-    /// - Throws: ``OpaqueError/notInitialized`` if ``initialize()`` has not been called,
-    ///   ``OpaqueError/invalidPublicKey`` if the key is not a valid Ristretto255 point.
+    /// - Parameter relayPublicKey: The relay's 32-byte Ristretto255 public key.
+    /// - Throws: ``OpaqueError/notInitialized``, ``OpaqueError/invalidPublicKey``.
     public init(relayPublicKey: Data) throws {
         guard Self.initialized else {
             throw OpaqueError.notInitialized
         }
-
         guard relayPublicKey.count == Constants.publicKeyLength else {
             throw OpaqueError.invalidInput(
                 "Relay public key must be \(Constants.publicKeyLength) bytes"
             )
         }
 
-        var rawHandle: UnsafeMutableRawPointer?
+        var rawHandle: OpaquePointer?
+        var err = COpaqueError()
         let result = relayPublicKey.withUnsafeBytes { keyPtr in
             opaque_agent_create(
                 keyPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
                 relayPublicKey.count,
-                &rawHandle
+                &rawHandle,
+                &err
             )
         }
 
-        guard result == 0, let validHandle = rawHandle else {
-            throw OpaqueError.fromCode(result)
+        guard result == 0, let h = rawHandle else {
+            throw OpaqueError.from(&err)
         }
-
-        self.handle = OpaquePointer(validHandle)
+        self.handle = h
     }
 
     deinit {
         lock.lock()
-        let h = handle
+        var h: OpaquePointer? = handle
         handle = nil
         lock.unlock()
-        if let h {
-            opaque_agent_destroy(UnsafeMutableRawPointer(h))
+        if h != nil {
+            opaque_agent_destroy(&h)
         }
     }
 
     /// Creates a fresh protocol state for one registration or authentication session.
-    ///
-    /// Each state must be used for exactly one operation (registration *or* login),
-    /// then disposed. States expire after 5 minutes.
-    ///
-    /// - Returns: A new ``AgentState`` instance.
     public func createState() throws -> AgentState {
         try AgentState()
     }
 
-    /// **Registration step 1/2.** Creates an OPRF-blinded registration request.
-    ///
-    /// - Parameters:
-    ///   - password: The user's password as raw bytes (1–4096 bytes).
-    ///   - state: A fresh state from ``createState()``.
-    /// - Returns: A 33-byte registration request to send to the server.
+    // ── Registration ──────────────────────────────────────────────────────────
+
+    /// **Registration step 1/2.** Creates an OPRF-blinded registration request (33 bytes).
     public func createRegistrationRequest(password: Data, state: AgentState) throws -> Data {
         guard !password.isEmpty else {
             throw OpaqueError.invalidInput("Password cannot be empty")
         }
-
         lock.lock()
         defer { lock.unlock() }
-
-        guard let handle = handle else {
-            throw OpaqueError.invalidState
-        }
+        guard let handle = handle else { throw OpaqueError.invalidState }
 
         var request = Data(count: Constants.registrationRequestLength)
+        var err = COpaqueError()
 
         let result = try state.withHandle { stateHandle in
             password.withUnsafeBytes { passwordPtr in
                 request.withUnsafeMutableBytes { requestPtr in
                     opaque_agent_create_registration_request(
-                        UnsafeMutableRawPointer(handle),
+                        handle,
                         passwordPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
                         password.count,
                         stateHandle,
                         requestPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                        Constants.registrationRequestLength
+                        Constants.registrationRequestLength,
+                        &err
                     )
                 }
             }
         }
 
-        guard result == 0 else {
-            throw OpaqueError.fromCode(result)
-        }
-
+        guard result == 0 else { throw OpaqueError.from(&err) }
         return request
     }
 
-    /// **Registration step 2/2.** Finalizes registration using the server's response.
+    /// **Registration step 2/2.** Finalizes registration and returns a 169-byte record.
     ///
-    /// - Parameters:
-    ///   - response: The server's 65-byte registration response.
-    ///   - state: The same state used in ``createRegistrationRequest(password:state:)``.
-    /// - Returns: A 169-byte registration record to send to the server for storage.
-    /// - Throws: ``OpaqueError/authenticationError`` if the server's public key
-    ///   doesn't match the one given at agent creation (MITM protection).
+    /// - Throws: ``OpaqueError/authenticationError`` if server public key doesn't match (MITM).
     public func finalizeRegistration(response: Data, state: AgentState) throws -> Data {
-        lock.lock()
-        defer { lock.unlock() }
-
-        guard let handle = handle else {
-            throw OpaqueError.invalidState
-        }
-
         guard response.count == Constants.registrationResponseLength else {
             throw OpaqueError.invalidInput(
                 "Response must be \(Constants.registrationResponseLength) bytes"
             )
         }
+        lock.lock()
+        defer { lock.unlock() }
+        guard let handle = handle else { throw OpaqueError.invalidState }
 
         var record = Data(count: Constants.registrationRecordLength)
+        var err = COpaqueError()
 
         let result = try state.withHandle { stateHandle in
             response.withUnsafeBytes { responsePtr in
                 record.withUnsafeMutableBytes { recordPtr in
                     opaque_agent_finalize_registration(
-                        UnsafeMutableRawPointer(handle),
+                        handle,
                         responsePtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
                         response.count,
                         stateHandle,
                         recordPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                        Constants.registrationRecordLength
+                        Constants.registrationRecordLength,
+                        &err
                     )
                 }
             }
         }
 
-        guard result == 0 else {
-            throw OpaqueError.fromCode(result)
-        }
-
+        guard result == 0 else { throw OpaqueError.from(&err) }
         return record
     }
 
-    /// **Authentication step 1/3.** Generates the first key-exchange message (KE1).
-    ///
-    /// - Parameters:
-    ///   - password: The user's password as raw bytes.
-    ///   - state: A fresh state from ``createState()``.
-    /// - Returns: A 1273-byte KE1 message to send to the server along with the account identifier.
+    // ── Authentication ────────────────────────────────────────────────────────
+
+    /// **Authentication step 1/3.** Produces a 1273-byte KE1 message.
     public func generateKE1(password: Data, state: AgentState) throws -> Data {
         guard !password.isEmpty else {
             throw OpaqueError.invalidInput("Password cannot be empty")
         }
-
         lock.lock()
         defer { lock.unlock() }
-
-        guard let handle = handle else {
-            throw OpaqueError.invalidState
-        }
+        guard let handle = handle else { throw OpaqueError.invalidState }
 
         var ke1 = Data(count: Constants.ke1Length)
+        var err = COpaqueError()
 
         let result = try state.withHandle { stateHandle in
             password.withUnsafeBytes { passwordPtr in
                 ke1.withUnsafeMutableBytes { ke1Ptr in
                     opaque_agent_generate_ke1(
-                        UnsafeMutableRawPointer(handle),
+                        handle,
                         passwordPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
                         password.count,
                         stateHandle,
                         ke1Ptr.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                        Constants.ke1Length
+                        Constants.ke1Length,
+                        &err
                     )
                 }
             }
         }
 
-        guard result == 0 else {
-            throw OpaqueError.fromCode(result)
-        }
-
+        guard result == 0 else { throw OpaqueError.from(&err) }
         return ke1
     }
 
-    /// **Authentication step 2/3.** Processes the server's KE2 and produces KE3.
+    /// **Authentication step 2/3.** Processes KE2 and produces a 65-byte KE3.
     ///
-    /// Internally decrypts the credential envelope, recovers the client's private key,
-    /// and verifies the server's MAC. If the password is wrong or KE2 was tampered with,
-    /// this method throws.
-    ///
-    /// - Parameters:
-    ///   - ke2: The server's 1377-byte KE2 message.
-    ///   - state: The same state used in ``generateKE1(password:state:)``.
-    /// - Returns: A 65-byte KE3 message (client MAC) to send to the server.
     /// - Throws: ``OpaqueError/authenticationError`` on wrong password or tampered KE2.
     public func generateKE3(ke2: Data, state: AgentState) throws -> Data {
+        guard ke2.count == Constants.ke2Length else {
+            throw OpaqueError.invalidInput("KE2 must be \(Constants.ke2Length) bytes")
+        }
         lock.lock()
         defer { lock.unlock() }
-
-        guard let handle = handle else {
-            throw OpaqueError.invalidState
-        }
-
-        guard ke2.count == Constants.ke2Length else {
-            throw OpaqueError.invalidInput(
-                "KE2 must be \(Constants.ke2Length) bytes"
-            )
-        }
+        guard let handle = handle else { throw OpaqueError.invalidState }
 
         var ke3 = Data(count: Constants.ke3Length)
+        var err = COpaqueError()
 
         let result = try state.withHandle { stateHandle in
             ke2.withUnsafeBytes { ke2Ptr in
                 ke3.withUnsafeMutableBytes { ke3Ptr in
                     opaque_agent_generate_ke3(
-                        UnsafeMutableRawPointer(handle),
+                        handle,
                         ke2Ptr.baseAddress?.assumingMemoryBound(to: UInt8.self),
                         ke2.count,
                         stateHandle,
                         ke3Ptr.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                        Constants.ke3Length
+                        Constants.ke3Length,
+                        &err
                     )
                 }
             }
         }
 
-        guard result == 0 else {
-            throw OpaqueError.fromCode(result)
-        }
-
+        guard result == 0 else { throw OpaqueError.from(&err) }
         return ke3
     }
 
-    /// **Authentication step 3/3.** Extracts the shared session and master keys.
+    /// **Authentication step 3/3.** Extracts shared session (64 bytes) and master (32 bytes) keys.
     ///
-    /// Call this after ``generateKE3(ke2:state:)`` succeeds. The returned keys are
-    /// memory-locked and must be explicitly disposed after use.
-    ///
-    /// - Parameter state: The same state used throughout this authentication session.
-    /// - Returns: An ``AuthenticationKeys`` containing the 64-byte session key and 32-byte master key.
+    /// Keys are memory-locked and must be explicitly disposed after use.
     public func finish(state: AgentState) throws -> AuthenticationKeys {
         lock.lock()
         defer { lock.unlock() }
-
-        guard let handle = handle else {
-            throw OpaqueError.invalidState
-        }
+        guard let handle = handle else { throw OpaqueError.invalidState }
 
         var sessionKey = Data(count: Constants.sessionKeyLength)
-        var masterKey = Data(count: Constants.masterKeyLength)
+        var masterKey  = Data(count: Constants.masterKeyLength)
         defer {
             secureZeroData(&sessionKey)
             secureZeroData(&masterKey)
         }
+        var err = COpaqueError()
 
         let result = try state.withHandle { stateHandle in
             sessionKey.withUnsafeMutableBytes { sessionPtr in
                 masterKey.withUnsafeMutableBytes { masterPtr in
                     opaque_agent_finish(
-                        UnsafeMutableRawPointer(handle),
+                        handle,
                         stateHandle,
                         sessionPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
                         Constants.sessionKeyLength,
                         masterPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                        Constants.masterKeyLength
+                        Constants.masterKeyLength,
+                        &err
                     )
                 }
             }
         }
 
-        guard result == 0 else {
-            throw OpaqueError.fromCode(result)
-        }
-
+        guard result == 0 else { throw OpaqueError.from(&err) }
         return AuthenticationKeys(sessionKey: sessionKey, masterKey: masterKey)
     }
 }
 
+// ── AgentState ────────────────────────────────────────────────────────────────
+
 extension OpaqueAgent {
     /// Ephemeral state for a single registration or authentication session.
     ///
-    /// Create via ``OpaqueAgent/createState()``. Each state holds intermediate
-    /// cryptographic material (OPRF blind, ephemeral keys, nonces) and expires
-    /// after 5 minutes. Call ``dispose()`` when done.
+    /// Create via ``OpaqueAgent/createState()``. Expires after 5 minutes.
+    /// Call ``dispose()`` when done to securely zeroize all key material.
     public final class AgentState: @unchecked Sendable {
         private var handle: OpaquePointer?
         private let lock = NSLock()
 
         internal init() throws {
-            var rawHandle: UnsafeMutableRawPointer?
-            let result = opaque_agent_state_create(&rawHandle)
+            var rawHandle: OpaquePointer?
+            var err = COpaqueError()
+            let result = opaque_agent_state_create(&rawHandle, &err)
 
-            guard result == 0, let validHandle = rawHandle else {
-                throw OpaqueError.fromCode(result)
+            guard result == 0, let h = rawHandle else {
+                throw OpaqueError.from(&err)
             }
-
-            self.handle = OpaquePointer(validHandle)
+            self.handle = h
         }
 
-        internal func withHandle<T>(_ body: (UnsafeMutableRawPointer) throws -> T) throws -> T {
+        internal func withHandle<T>(_ body: (OpaquePointer?) throws -> T) throws -> T {
             lock.lock()
             defer { lock.unlock() }
-            guard let h = handle else {
-                throw OpaqueError.invalidState
-            }
-            return try body(UnsafeMutableRawPointer(h))
+            guard let h = handle else { throw OpaqueError.invalidState }
+            return try body(h)
         }
 
         /// Releases the native state and securely zeroizes its memory.
-        ///
         /// Safe to call multiple times. Also called automatically on `deinit`.
         public func dispose() {
             lock.lock()
-            let h = handle
+            var h: OpaquePointer? = handle
             handle = nil
             lock.unlock()
-            if let h {
-                opaque_agent_state_destroy(UnsafeMutableRawPointer(h))
+            if h != nil {
+                opaque_agent_state_destroy(&h)
             }
         }
 
@@ -413,24 +340,22 @@ extension OpaqueAgent {
     }
 }
 
+// ── AuthenticationKeys ────────────────────────────────────────────────────────
+
 /// Shared cryptographic keys produced after a successful authentication.
 ///
 /// Keys are memory-locked (`mlock`) to prevent swapping to disk.
 /// Access them through ``withSessionKey(_:)`` and ``withMasterKey(_:)``,
 /// then call ``dispose()`` to securely zeroize and unlock the memory.
-///
-/// - **Session key** (64 bytes): ephemeral key for encrypting the current session.
-/// - **Master key** (32 bytes): stable key derived from the password, usable for
-///   key derivation (e.g. encrypting local data).
 public final class AuthenticationKeys: @unchecked Sendable {
     private var _sessionKey: Data
-    private var _masterKey: Data
-    private let lock = NSLock()
+    private var _masterKey:  Data
+    private let lock    = NSLock()
     private var disposed = false
 
     internal init(sessionKey: Data, masterKey: Data) {
         self._sessionKey = sessionKey
-        self._masterKey = masterKey
+        self._masterKey  = masterKey
         _sessionKey.withUnsafeMutableBytes { bytes in
             guard let base = bytes.baseAddress else { return }
             _ = mlock(base, bytes.count)
@@ -442,7 +367,6 @@ public final class AuthenticationKeys: @unchecked Sendable {
     }
 
     /// Accesses the 64-byte session key within a scoped closure.
-    ///
     /// - Throws: ``OpaqueError/invalidState`` if already disposed.
     public func withSessionKey<T>(_ body: (Data) throws -> T) throws -> T {
         lock.lock()
@@ -452,7 +376,6 @@ public final class AuthenticationKeys: @unchecked Sendable {
     }
 
     /// Accesses the 32-byte master key within a scoped closure.
-    ///
     /// - Throws: ``OpaqueError/invalidState`` if already disposed.
     public func withMasterKey<T>(_ body: (Data) throws -> T) throws -> T {
         lock.lock()
@@ -462,7 +385,6 @@ public final class AuthenticationKeys: @unchecked Sendable {
     }
 
     /// Securely zeroizes both keys and unlocks the memory pages.
-    ///
     /// Safe to call multiple times. Also called automatically on `deinit`.
     public func dispose() {
         lock.lock()
@@ -480,41 +402,28 @@ public final class AuthenticationKeys: @unchecked Sendable {
             munlock(base, bytes.count)
         }
         _sessionKey = Data()
-        _masterKey = Data()
+        _masterKey  = Data()
     }
 
     deinit { dispose() }
 }
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 extension OpaqueAgent {
     /// Wire sizes and cryptographic constants used by the protocol.
-    ///
-    /// Wire message sizes include a 1-byte protocol version prefix.
-    /// Key sizes are raw cryptographic material without the prefix.
     public enum Constants {
-        /// Ristretto255 compressed public key (32 bytes).
-        public static let publicKeyLength = 32
-        /// Ristretto255 scalar private key (32 bytes).
-        public static let privateKeyLength = 32
-        /// Version prefix (1) + OPRF blinded element (32) = 33 bytes.
-        public static let registrationRequestLength = 33
-        /// Version prefix (1) + evaluated OPRF element (32) + relay public key (32) = 65 bytes.
-        public static let registrationResponseLength = 65
-        /// Version prefix (1) + envelope + public key material = 169 bytes.
-        public static let registrationRecordLength = 169
-        /// SHA-512 session key (64 bytes, no version prefix).
-        public static let sessionKeyLength = 64
-        /// HKDF-derived master key (32 bytes, no version prefix).
-        public static let masterKeyLength = 32
-        /// Version prefix (1) + OPRF request (32) + Ristretto255 ephemeral (32) + nonce (24) + ML-KEM-768 public key (1184) = 1273 bytes.
-        public static let ke1Length = 1273
-        /// Version prefix (1) + server credential response + KE2 key exchange components = 1377 bytes.
-        public static let ke2Length = 1377
-        /// Version prefix (1) + HMAC-SHA-512 MAC (64) = 65 bytes.
-        public static let ke3Length = 65
-        /// ML-KEM-768 encapsulation public key (1184 bytes).
-        public static let kemPublicKeyLength = 1184
-        /// ML-KEM-768 ciphertext (1088 bytes).
-        public static let kemCiphertextLength = 1088
+        public static let publicKeyLength              = 32
+        public static let privateKeyLength             = 32
+        public static let registrationRequestLength    = 33
+        public static let registrationResponseLength   = 65
+        public static let registrationRecordLength     = 169
+        public static let sessionKeyLength             = 64
+        public static let masterKeyLength              = 32
+        public static let ke1Length                    = 1273
+        public static let ke2Length                    = 1377
+        public static let ke3Length                    = 65
+        public static let kemPublicKeyLength           = 1184
+        public static let kemCiphertextLength          = 1088
     }
 }
