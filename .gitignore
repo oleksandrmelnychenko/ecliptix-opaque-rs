@@ -6,6 +6,7 @@ build*/
 dist/
 
 # Swift
+.build/
 swift/.build/
 
 # IDE

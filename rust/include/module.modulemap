@@ -1,0 +1,4 @@
+module EcliptixOPAQUEBinary {
+    umbrella header "opaque_api.h"
+    export *
+}

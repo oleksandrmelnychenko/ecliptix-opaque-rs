@@ -4,33 +4,38 @@
 [![Benchmarks](https://github.com/oleksandrmelnychenko/ecliptix-opaque-rs/actions/workflows/benchmarks.yml/badge.svg)](https://github.com/oleksandrmelnychenko/ecliptix-opaque-rs/actions/workflows/benchmarks.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Hybrid post-quantum **OPAQUE** implementation in Rust combining **4DH Ristretto255** with **ML-KEM-768** for quantum-resistant password-authenticated key exchange.
+Hybrid post-quantum **OPAQUE** implementation in Rust combining **4DH Ristretto255** with **ML-KEM-768** for password-authenticated key exchange.
 
-## Security Properties
+## Security Posture
 
-All seven properties are formally verified (Tamarin 8/8 lemmas, ProVerif 5/5 queries) and validated by 132 Rust computational tests:
+This repository ships:
 
-| Property | Tamarin | ProVerif | Rust |
-|----------|---------|----------|------|
-| Session key secrecy | verified | verified | 4 |
-| Password secrecy | verified | verified | 7 |
-| Classical forward secrecy | verified | - | 3 |
-| Post-quantum forward secrecy | verified | - | 3 |
-| Mutual authentication | verified | verified | 8 |
-| AND-model hybrid security | verified | - | 4 |
-| Offline dictionary resistance | verified | verified | 6 |
+- Production Rust implementations of the agent, relay, and FFI layers.
+- Regression tests for known security classes, including identity-point rejection, terminal-state reuse rejection, and the `oprf_seed` compromise boundary.
+- Symbolic models in `formal/` that support the protocol narrative, but do **not** constitute an exact proof of the shipping implementation.
+
+Security claims are intentionally scoped to the implemented trust boundary:
+
+| Property | Status | Scope |
+|----------|--------|-------|
+| Session key secrecy | Supported by symbolic models + Rust tests | Honest endpoints, uncompromised ephemeral secrets |
+| Password secrecy on the wire | Supported by symbolic models + Rust tests | Password never appears directly in protocol messages |
+| Hybrid combiner / PQ contribution | Supported by Rust tests + surrogate symbolic models | Depends on the implemented 4DH + ML-KEM transcript combiner |
+| Mutual authentication | Supported by symbolic models + Rust tests | Assumes correct relay public key pinning and trusted transport |
+| Offline dictionary resistance | **Scoped** | Holds for DB compromise **without** `oprf_seed` compromise |
 
 ## Attack Coverage
 
-Tested against 11 attack classes with 40 deterministic tests + 5 property-based (fuzz) tests:
+The test suite exercises multiple failure classes directly in code. Important boundary conditions:
 
 | Attack | Protection | Tests |
 |--------|-----------|-------|
-| **Offline dictionary** | Argon2id hardness + server-side OPRF key | 6 |
+| **Offline dictionary after DB-only compromise** | Argon2id hardness + server-side OPRF key separation | regression + property tests |
+| **Offline dictionary after `oprf_seed` compromise** | Not prevented by design; documented operator boundary | regression test |
 | **Server impersonation (MITM)** | KE2 MAC verification, 4DH mutual auth | 4 |
 | **Client impersonation** | KE3 MAC verification | 2 |
 | **Replay attack** | Fresh ephemeral keys + nonce binding per session | 2 |
-| **Transcript tampering** | HMAC-SHA512 on all KE messages, detected at every byte position | 4 + 2 fuzz |
+| **Transcript tampering** | HMAC-SHA512 on all KE messages, detected at every byte position | deterministic + fuzz |
 | **Forward secrecy (classical)** | Ephemeral 4DH — past sessions safe after LTK compromise | 3 |
 | **Forward secrecy (post-quantum)** | ML-KEM-768 ephemeral encapsulation | 3 |
 | **Quantum key recovery** | ML-KEM-768 protects if DH is broken | 3 |
@@ -97,7 +102,14 @@ Three Criterion benchmark suites:
 
 ## FFI
 
-The `opaque-ffi` crate exports a C API via `cbindgen`. Swift bindings in `swift/` call the Rust FFI exports directly.
+The canonical public C contract lives in `rust/include/`:
+
+- `opaque_common.h`
+- `opaque_agent.h`
+- `opaque_relay.h`
+- `opaque_api.h`
+
+The Apple packaging path now stages those curated headers and `module.modulemap` directly into the XCFramework. The current Swift wrapper still uses a temporary ABI shim while the republished XCFramework/module path is rolled out, but the canonical ABI source is the curated header set above.
 
 | Platform | Package |
 |----------|---------|
@@ -105,11 +117,11 @@ The `opaque-ffi` crate exports a C API via `cbindgen`. Swift bindings in `swift/
 
 ## Formal Verification
 
-Models and proof logs in `formal/`:
+Models and proof logs live in `formal/`, but they should be read as **protocol evidence**, not as a line-by-line proof of the shipped Rust implementation:
 
-- `hybrid_pq_opaque.spthy` — Tamarin model (8 lemmas, verified in 22.83s)
-- `hybrid_pq_opaque.pv` — ProVerif model (5 queries)
-- `logs/` — full verification transcripts and reports
+- `hybrid_pq_opaque.spthy` and `hybrid_pq_opaque_verified.spthy` model surrogate/abstract DH behaviour.
+- `hybrid_pq_opaque.pv` and `hybrid_pq_opaque_auth.pv` split secrecy and authentication into separate ProVerif models.
+- `formal/logs/FULL_VERIFICATION_REPORT.md` documents the exact boundary between symbolic claims and implementation evidence.
 
 ## License
 

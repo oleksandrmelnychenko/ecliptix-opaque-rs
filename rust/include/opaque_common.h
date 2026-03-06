@@ -18,7 +18,7 @@ extern "C" {
 
 /* ── Wire-size constants ──────────────────────────────────────────────────── */
 
-/** KE1 message (version + OPRF element + ephemeral X25519 + nonce + ML-KEM-768 pk). */
+/** KE1 message (version + OPRF element + ephemeral Ristretto255 key + nonce + ML-KEM-768 pk). */
 #define OPAQUE_KE1_LENGTH                    1273
 /** KE2 message. */
 #define OPAQUE_KE2_LENGTH                    1377
@@ -32,10 +32,12 @@ extern "C" {
 /** Registration record stored server-side: encrypted envelope + client pk. */
 #define OPAQUE_REGISTRATION_RECORD_LENGTH     169
 
-/** Session key length (BLAKE2b-512 output). */
+/** Session key length (HKDF-SHA512 output). */
 #define OPAQUE_SESSION_KEY_LENGTH              64
 /** Master key length. */
 #define OPAQUE_MASTER_KEY_LENGTH               32
+/** OPRF seed length. */
+#define OPAQUE_OPRF_SEED_LENGTH                32
 /** Ristretto255 public key length. */
 #define OPAQUE_PUBLIC_KEY_LENGTH               32
 /** ML-KEM-768 public key length. */
@@ -96,6 +98,21 @@ typedef struct OpaqueAgentHandle OpaqueAgentHandle;
  * OPAQUE_ERROR_VALIDATION.
  */
 typedef struct OpaqueAgentStateHandle OpaqueAgentStateHandle;
+
+/**
+ * Relay (server) handle — owns the static keypair and OPRF evaluator state.
+ */
+typedef struct OpaqueRelayHandle OpaqueRelayHandle;
+
+/**
+ * Relay keypair handle — temporary holder for generated relay keys and OPRF seed.
+ */
+typedef struct OpaqueRelayKeypairHandle OpaqueRelayKeypairHandle;
+
+/**
+ * Per-flow relay state — one per authentication attempt.
+ */
+typedef struct OpaqueRelayStateHandle OpaqueRelayStateHandle;
 
 /* ── Library lifecycle ────────────────────────────────────────────────────── */
 

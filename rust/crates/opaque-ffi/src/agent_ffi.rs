@@ -74,7 +74,7 @@ use crate::{ffi_catch_panic, write_core_error, write_error, OpaqueError, OpaqueE
 /// Typed agent handle. Forward-declared as `struct OpaqueAgentHandle` in C.
 pub struct OpaqueAgentHandle {
     initiator: OpaqueInitiator,
-    in_use:    AtomicBool,
+    in_use: AtomicBool,
 }
 
 impl Drop for OpaqueAgentHandle {
@@ -85,7 +85,7 @@ impl Drop for OpaqueAgentHandle {
 
 /// Typed per-flow state handle. Forward-declared as `struct OpaqueAgentStateHandle` in C.
 pub struct OpaqueAgentStateHandle {
-    state:  InitiatorState,
+    state: InitiatorState,
     in_use: AtomicBool,
 }
 
@@ -144,9 +144,9 @@ unsafe fn acquire_agent_state(
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_create(
     relay_public_key: *const u8,
-    key_length:       usize,
-    out_handle:       *mut *mut OpaqueAgentHandle,
-    out_error:        *mut OpaqueError,
+    key_length: usize,
+    out_handle: *mut *mut OpaqueAgentHandle,
+    out_error: *mut OpaqueError,
 ) -> OpaqueErrorCode {
     ffi_catch_panic!(out_error, {
         if relay_public_key.is_null() || key_length != PUBLIC_KEY_LENGTH || out_handle.is_null() {
@@ -155,7 +155,7 @@ pub unsafe extern "C" fn opaque_agent_create(
         }
         let key = std::slice::from_raw_parts(relay_public_key, key_length);
         let initiator = match OpaqueInitiator::new(key) {
-            Ok(i)  => i,
+            Ok(i) => i,
             Err(e) => return write_core_error(out_error, e),
         };
         let boxed = Box::new(OpaqueAgentHandle {
@@ -200,15 +200,19 @@ pub unsafe extern "C" fn opaque_agent_destroy(handle_ptr: *mut *mut OpaqueAgentH
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_state_create(
     out_handle: *mut *mut OpaqueAgentStateHandle,
-    out_error:  *mut OpaqueError,
+    out_error: *mut OpaqueError,
 ) -> OpaqueErrorCode {
     ffi_catch_panic!(out_error, {
         if out_handle.is_null() {
-            write_error(out_error, OpaqueErrorCode::InvalidInput, "out_handle is null");
+            write_error(
+                out_error,
+                OpaqueErrorCode::InvalidInput,
+                "out_handle is null",
+            );
             return OpaqueErrorCode::InvalidInput;
         }
         let boxed = Box::new(OpaqueAgentStateHandle {
-            state:  InitiatorState::new(),
+            state: InitiatorState::new(),
             in_use: AtomicBool::new(false),
         });
         *out_handle = Box::into_raw(boxed);
@@ -224,9 +228,7 @@ pub unsafe extern "C" fn opaque_agent_state_create(
 /// `handle_ptr` must be null or point to a valid `OpaqueAgentStateHandle*` from
 /// `opaque_agent_state_create`.
 #[no_mangle]
-pub unsafe extern "C" fn opaque_agent_state_destroy(
-    handle_ptr: *mut *mut OpaqueAgentStateHandle,
-) {
+pub unsafe extern "C" fn opaque_agent_state_destroy(handle_ptr: *mut *mut OpaqueAgentStateHandle) {
     let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         if handle_ptr.is_null() {
             return;
@@ -252,13 +254,13 @@ pub unsafe extern "C" fn opaque_agent_state_destroy(
 /// `out_error` must be null or point to a valid `OpaqueError`.
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_create_registration_request(
-    agent_handle:    *mut OpaqueAgentHandle,
-    password:        *const u8,
+    agent_handle: *mut OpaqueAgentHandle,
+    password: *const u8,
     password_length: usize,
-    state_handle:    *mut OpaqueAgentStateHandle,
-    request_out:     *mut u8,
-    request_length:  usize,
-    out_error:       *mut OpaqueError,
+    state_handle: *mut OpaqueAgentStateHandle,
+    request_out: *mut u8,
+    request_length: usize,
+    out_error: *mut OpaqueError,
 ) -> OpaqueErrorCode {
     ffi_catch_panic!(out_error, {
         if password.is_null()
@@ -302,13 +304,13 @@ pub unsafe extern "C" fn opaque_agent_create_registration_request(
 /// `out_error` must be null or point to a valid `OpaqueError`.
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_finalize_registration(
-    agent_handle:    *mut OpaqueAgentHandle,
-    response:        *const u8,
+    agent_handle: *mut OpaqueAgentHandle,
+    response: *const u8,
     response_length: usize,
-    state_handle:    *mut OpaqueAgentStateHandle,
-    record_out:      *mut u8,
-    record_length:   usize,
-    out_error:       *mut OpaqueError,
+    state_handle: *mut OpaqueAgentStateHandle,
+    record_out: *mut u8,
+    record_length: usize,
+    out_error: *mut OpaqueError,
 ) -> OpaqueErrorCode {
     ffi_catch_panic!(out_error, {
         if response.is_null()
@@ -358,13 +360,13 @@ pub unsafe extern "C" fn opaque_agent_finalize_registration(
 /// `out_error` must be null or point to a valid `OpaqueError`.
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_generate_ke1(
-    agent_handle:    *mut OpaqueAgentHandle,
-    password:        *const u8,
+    agent_handle: *mut OpaqueAgentHandle,
+    password: *const u8,
     password_length: usize,
-    state_handle:    *mut OpaqueAgentStateHandle,
-    ke1_out:         *mut u8,
-    ke1_length:      usize,
-    out_error:       *mut OpaqueError,
+    state_handle: *mut OpaqueAgentStateHandle,
+    ke1_out: *mut u8,
+    ke1_length: usize,
+    out_error: *mut OpaqueError,
 ) -> OpaqueErrorCode {
     ffi_catch_panic!(out_error, {
         if agent_handle.is_null()
@@ -418,12 +420,12 @@ pub unsafe extern "C" fn opaque_agent_generate_ke1(
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_generate_ke3(
     agent_handle: *mut OpaqueAgentHandle,
-    ke2:          *const u8,
-    ke2_length:   usize,
+    ke2: *const u8,
+    ke2_length: usize,
     state_handle: *mut OpaqueAgentStateHandle,
-    ke3_out:      *mut u8,
-    ke3_length:   usize,
-    out_error:    *mut OpaqueError,
+    ke3_out: *mut u8,
+    ke3_length: usize,
+    out_error: *mut OpaqueError,
 ) -> OpaqueErrorCode {
     ffi_catch_panic!(out_error, {
         if ke2.is_null() || ke2_length != KE2_LENGTH || ke3_out.is_null() || ke3_length < KE3_LENGTH
@@ -466,13 +468,13 @@ pub unsafe extern "C" fn opaque_agent_generate_ke3(
 /// `out_error` must be null or point to a valid `OpaqueError`.
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_finish(
-    _agent_handle:      *mut OpaqueAgentHandle,
-    state_handle:       *mut OpaqueAgentStateHandle,
-    session_key_out:    *mut u8,
+    _agent_handle: *mut OpaqueAgentHandle,
+    state_handle: *mut OpaqueAgentStateHandle,
+    session_key_out: *mut u8,
     session_key_length: usize,
-    master_key_out:     *mut u8,
-    master_key_length:  usize,
-    out_error:          *mut OpaqueError,
+    master_key_out: *mut u8,
+    master_key_length: usize,
+    out_error: *mut OpaqueError,
 ) -> OpaqueErrorCode {
     ffi_catch_panic!(out_error, {
         if session_key_out.is_null()
@@ -490,12 +492,12 @@ pub unsafe extern "C" fn opaque_agent_finish(
         };
 
         let mut session_key = [0u8; HASH_LENGTH];
-        let mut master_key  = [0u8; MASTER_KEY_LENGTH];
+        let mut master_key = [0u8; MASTER_KEY_LENGTH];
 
         let rc = match initiator_finish(&mut sh.state, &mut session_key, &mut master_key) {
             Ok(()) => {
                 ptr::copy_nonoverlapping(session_key.as_ptr(), session_key_out, HASH_LENGTH);
-                ptr::copy_nonoverlapping(master_key.as_ptr(),  master_key_out,  MASTER_KEY_LENGTH);
+                ptr::copy_nonoverlapping(master_key.as_ptr(), master_key_out, MASTER_KEY_LENGTH);
                 OpaqueErrorCode::Success
             }
             Err(e) => write_core_error(out_error, e),

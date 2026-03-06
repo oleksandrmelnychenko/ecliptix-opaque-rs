@@ -6,13 +6,14 @@
 //! C-compatible Foreign Function Interface for the Ecliptix hybrid
 //! post-quantum OPAQUE protocol.
 //!
-//! Exposes the agent (client) API as `extern "C"` functions suitable for
-//! consumption from Swift, C, or any language with C FFI support.
-//! The relay (server) uses the `opaque-relay` crate directly from Rust.
+//! Exposes the agent (client) and relay (server) APIs as `extern "C"`
+//! functions suitable for consumption from Swift, C, or any language with
+//! C FFI support.
 
 mod agent_ffi;
+mod relay_ffi;
 
-use std::ffi::{CString, c_char};
+use std::ffi::{c_char, CString};
 
 // ── Error code ───────────────────────────────────────────────────────────────
 
@@ -20,35 +21,35 @@ use std::ffi::{CString, c_char};
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpaqueErrorCode {
-    Success             =    0,
-    InvalidInput        =   -1,
-    Crypto              =   -2,
-    InvalidFormat       =   -3,
-    Validation          =   -4,
-    AuthFailed          =   -5,
-    InvalidKey          =   -6,
-    AlreadyRegistered   =   -7,
-    MlKem               =   -8,
-    InvalidEnvelope     =   -9,
-    UnsupportedVersion  =  -10,
-    Internal            =  -99,
-    Busy                = -100,
+    Success = 0,
+    InvalidInput = -1,
+    Crypto = -2,
+    InvalidFormat = -3,
+    Validation = -4,
+    AuthFailed = -5,
+    InvalidKey = -6,
+    AlreadyRegistered = -7,
+    MlKem = -8,
+    InvalidEnvelope = -9,
+    UnsupportedVersion = -10,
+    Internal = -99,
+    Busy = -100,
 }
 
 impl From<opaque_core::types::OpaqueError> for OpaqueErrorCode {
     fn from(e: opaque_core::types::OpaqueError) -> Self {
         use opaque_core::types::OpaqueError::*;
         match e {
-            InvalidInput           => Self::InvalidInput,
-            CryptoError            => Self::Crypto,
+            InvalidInput => Self::InvalidInput,
+            CryptoError => Self::Crypto,
             InvalidProtocolMessage => Self::InvalidFormat,
-            ValidationError        => Self::Validation,
-            AuthenticationError    => Self::AuthFailed,
-            InvalidPublicKey       => Self::InvalidKey,
-            AlreadyRegistered      => Self::AlreadyRegistered,
-            InvalidKemInput        => Self::MlKem,
-            InvalidEnvelope        => Self::InvalidEnvelope,
-            UnsupportedVersion     => Self::UnsupportedVersion,
+            ValidationError => Self::Validation,
+            AuthenticationError => Self::AuthFailed,
+            InvalidPublicKey => Self::InvalidKey,
+            AlreadyRegistered => Self::AlreadyRegistered,
+            InvalidKemInput => Self::MlKem,
+            InvalidEnvelope => Self::InvalidEnvelope,
+            UnsupportedVersion => Self::UnsupportedVersion,
         }
     }
 }
@@ -64,7 +65,7 @@ impl From<opaque_core::types::OpaqueError> for OpaqueErrorCode {
 /// after inspecting it to avoid leaking memory.
 #[repr(C)]
 pub struct OpaqueError {
-    pub code:    OpaqueErrorCode,
+    pub code: OpaqueErrorCode,
     pub message: *mut c_char,
 }
 
@@ -72,13 +73,13 @@ pub struct OpaqueError {
 ///
 /// # Safety
 /// `out_error` must be null or point to a valid `OpaqueError`.
-pub(crate) unsafe fn write_error(
-    out_error: *mut OpaqueError,
-    code: OpaqueErrorCode,
-    msg: &str,
-) {
+pub(crate) unsafe fn write_error(out_error: *mut OpaqueError, code: OpaqueErrorCode, msg: &str) {
     if out_error.is_null() {
         return;
+    }
+    let prior = (*out_error).message;
+    if !prior.is_null() {
+        drop(CString::from_raw(prior));
     }
     let c_msg = CString::new(msg).unwrap_or_else(|_| CString::new("error").unwrap());
     (*out_error).code = code;
@@ -126,6 +127,13 @@ macro_rules! ffi_catch_panic {
 }
 pub(crate) use ffi_catch_panic;
 
+pub(crate) fn result_to_int<T>(result: opaque_core::types::OpaqueResult<T>) -> i32 {
+    match result {
+        Ok(_) => OpaqueErrorCode::Success as i32,
+        Err(err) => OpaqueErrorCode::from(err) as i32,
+    }
+}
+
 // ── Library lifecycle ─────────────────────────────────────────────────────────
 
 /// Returns the library version string ("1.0.0"). Statically allocated; do not free.
@@ -168,19 +176,19 @@ pub unsafe extern "C" fn opaque_error_free(error: *mut OpaqueError) {
 #[no_mangle]
 pub extern "C" fn opaque_error_string(code: OpaqueErrorCode) -> *const c_char {
     let s: &std::ffi::CStr = match code {
-        OpaqueErrorCode::Success             => c"success",
-        OpaqueErrorCode::InvalidInput        => c"invalid input",
-        OpaqueErrorCode::Crypto              => c"cryptographic operation failed",
-        OpaqueErrorCode::InvalidFormat       => c"invalid message format",
-        OpaqueErrorCode::Validation          => c"validation failed",
-        OpaqueErrorCode::AuthFailed          => c"authentication failed",
-        OpaqueErrorCode::InvalidKey          => c"invalid public key",
-        OpaqueErrorCode::AlreadyRegistered   => c"account already registered",
-        OpaqueErrorCode::MlKem               => c"ML-KEM error",
-        OpaqueErrorCode::InvalidEnvelope     => c"invalid envelope",
-        OpaqueErrorCode::UnsupportedVersion  => c"unsupported protocol version",
-        OpaqueErrorCode::Internal            => c"internal error",
-        OpaqueErrorCode::Busy                => c"handle busy",
+        OpaqueErrorCode::Success => c"success",
+        OpaqueErrorCode::InvalidInput => c"invalid input",
+        OpaqueErrorCode::Crypto => c"cryptographic operation failed",
+        OpaqueErrorCode::InvalidFormat => c"invalid message format",
+        OpaqueErrorCode::Validation => c"validation failed",
+        OpaqueErrorCode::AuthFailed => c"authentication failed",
+        OpaqueErrorCode::InvalidKey => c"invalid public key",
+        OpaqueErrorCode::AlreadyRegistered => c"account already registered",
+        OpaqueErrorCode::MlKem => c"ML-KEM error",
+        OpaqueErrorCode::InvalidEnvelope => c"invalid envelope",
+        OpaqueErrorCode::UnsupportedVersion => c"unsupported protocol version",
+        OpaqueErrorCode::Internal => c"internal error",
+        OpaqueErrorCode::Busy => c"handle busy",
     };
     s.as_ptr()
 }

@@ -3,6 +3,18 @@
 
 version: 2
 updates:
+  - package-ecosystem: "cargo"
+    directory: "/rust"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "deps(rust)"
+    labels:
+      - "dependencies"
+      - "rust"
+    open-pull-requests-limit: 5
+
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -14,17 +26,4 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
-    open-pull-requests-limit: 5
-
-  # Gradle (Android) - monitors plugin versions
-  - package-ecosystem: "gradle"
-    directory: "/android"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "deps(gradle)"
-    labels:
-      - "dependencies"
-      - "android"
     open-pull-requests-limit: 5

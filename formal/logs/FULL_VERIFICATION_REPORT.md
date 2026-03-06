@@ -8,7 +8,13 @@
 
 ## 1. Overview
 
-This report documents the complete formal verification of the Hybrid PQ-OPAQUE protocol using two independent symbolic protocol verifiers — **ProVerif 2.05** and **Tamarin Prover 1.10.0** — as well as **39 computational security property tests** exercising the real Rust implementation.
+This report documents the symbolic verification evidence for the Hybrid PQ-OPAQUE protocol using **ProVerif 2.05** and **Tamarin Prover 1.10.0**, together with computational tests that exercise the Rust implementation.
+
+This report should **not** be read as an exact line-by-line proof of the shipping Rust/FFI code. The formal artifacts use surrogate models and split-model workflows:
+
+- Tamarin uses an abstract/surrogate DH representation in the verified model.
+- ProVerif splits secrecy and authentication into separate models.
+- Offline dictionary claims only cover the **database-only compromise** case; compromise of `oprf_seed` is outside that verified boundary and is now treated as an explicit operational secret-compromise scenario.
 
 The protocol combines classical 4-party Diffie-Hellman (Ristretto255) with the post-quantum KEM ML-KEM-768 (CRYSTALS-Kyber) in an AND-model hybrid construction, layered on the OPAQUE password-authenticated key exchange framework.
 
@@ -29,18 +35,18 @@ All verifications use the **Dolev-Yao adversary model**: the adversary controls 
 
 | # | Property | Description | ProVerif | Tamarin | Rust Tests |
 |---|----------|-------------|----------|---------|------------|
-| P1 | Session Key Secrecy | Session key confidential when both parties honest | **true** | **verified** (27 steps) | 4 tests |
-| P2 | Password Secrecy | Password never leaked to adversary | **true** | **verified** (3 steps) | 7 tests |
+| P1 | Session Key Secrecy | Session key confidential when both parties honest | **true** | surrogate model | 4 tests |
+| P2 | Password Secrecy | Password never leaked to adversary on the wire | **true** | surrogate model | 7 tests |
 | P3 | Classical Forward Secrecy | Past session keys survive post-session LTK compromise | — | **verified** (119 steps) | 3 tests |
 | P4 | PQ Forward Secrecy | Session key safe even if DH is broken (quantum adversary) | — | *implied by P6* | 3 tests |
 | P5a | Agent Authentication | Agent completes only with honest relay participation | **true** | **verified** (32 steps) | 8 tests |
 | P5b | Relay Authentication | Relay completes only with honest agent participation | **true** | **verified** (17 steps) | *(in P5a)* |
 | P5c | Injective Mutual Auth | One-to-one session correspondence (replay-resistance) | **true** | *implied by P5a+P5b* | *(in P5a)* |
-| P6 | AND-Model Hybrid Security | Breaking DH alone or KEM alone is insufficient | — | **verified** (29 steps) | 4 tests |
-| P7 | Offline Dictionary Resistance | DB compromise + offline computation cannot recover password | — | **verified** (4 steps) | 6 tests |
+| P6 | AND-Model Hybrid Security | Breaking DH alone or KEM alone is insufficient | — | surrogate model | 4 tests |
+| P7 | Offline Dictionary Resistance | DB-only compromise does not enable offline verification without `oprf_seed` | — | surrogate model | boundary regression tests |
 | — | Protocol Completion (sanity) | Honest execution succeeds | — | **verified** (16 steps) | 5 proptest |
 
-**Total: 8/8 Tamarin lemmas verified. 5/5 ProVerif queries verified. 39/39 Rust tests pass.**
+**Total:** symbolic evidence across 8 Tamarin lemmas and 5 ProVerif queries, plus computational regression tests. These counts must be interpreted together with the boundary notes above.
 
 ---
 
@@ -64,7 +70,7 @@ query attacker(sess_key_test).
 RESULT not attacker(sess_key_test[]) is true.
 ```
 
-**Interpretation:** Even with the relay's long-term key compromised, the attacker cannot derive the session key. The session key depends on the hybrid combination of 3DH ephemeral shares and the ML-KEM-768 shared secret.
+**Interpretation:** Even with the relay's long-term key compromised, the attacker cannot derive the session key in the symbolic model. The session key depends on the hybrid combination of 4DH ephemeral shares and the ML-KEM-768 shared secret.
 
 #### QUERY 2 — Password Secrecy (P2)
 

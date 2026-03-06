@@ -53,7 +53,9 @@ public final class OpaqueAgent: @unchecked Sendable {
 
         let result = opaque_init()
         guard result == 0 else {
-            throw OpaqueError.cryptoError("Failed to initialize cryptographic library (code: \(result))")
+            throw OpaqueError.cryptoError(
+                "Failed to initialize cryptographic library (code: \(result))"
+            )
         }
 
         isInitialized = true

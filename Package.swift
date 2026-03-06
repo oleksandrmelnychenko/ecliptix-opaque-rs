@@ -11,18 +11,18 @@ let package = Package(
     products: [
         .library(
             name: "EcliptixOPAQUE",
-            targets: ["EcliptixOPAQUESwift", "EcliptixOPAQUE"]
+            targets: ["EcliptixOPAQUESwift"]
         )
     ],
     targets: [
         .binaryTarget(
-            name: "EcliptixOPAQUE",
+            name: "EcliptixOPAQUEBinary",
             url: "https://github.com/oleksandrmelnychenko/ecliptix-opaque-rs/releases/download/v1.0.0/EcliptixOPAQUE.xcframework.zip",
-            checksum: "d999d86f1017f6887d0aeb0cf67aee855bfee5c1ac89c1aebecb357ea41e006b"
+            checksum: "f2799110c1d800092325486160cf26752521ce15e09ea40020e83cc1b4951c47"
         ),
         .target(
             name: "EcliptixOPAQUESwift",
-            dependencies: ["EcliptixOPAQUE"],
+            dependencies: ["EcliptixOPAQUEBinary"],
             path: "swift/Sources/EcliptixOPAQUE"
         )
     ]

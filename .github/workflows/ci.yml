@@ -21,11 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.1
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust -> target
-      - run: cargo test --workspace
+      - run: cargo test --workspace --tests --lib --locked
         working-directory: rust
 
   test-macos:
@@ -33,11 +35,13 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.1
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust -> target
-      - run: cargo test --workspace
+      - run: cargo test --workspace --tests --lib --locked
         working-directory: rust
 
   test-windows:
@@ -45,11 +49,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.1
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust -> target
-      - run: cargo test --workspace
+      - run: cargo test --workspace --tests --lib --locked
         working-directory: rust
 
   lint:
@@ -57,16 +63,51 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.93.1
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust -> target
       - run: cargo fmt --check
         working-directory: rust
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
         working-directory: rust
+
+  ffi-smoke:
+    name: FFI Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
+      - name: Build native FFI library
+        working-directory: rust
+        run: cargo build --package opaque-ffi --locked
+      - name: Verify public header surface
+        run: |
+          test -f rust/include/opaque_api.h
+          test -f rust/include/opaque_agent.h
+          test -f rust/include/opaque_relay.h
+          test -f rust/include/module.modulemap
+          grep -q 'umbrella header "opaque_api.h"' rust/include/module.modulemap
+      - name: Compile and run C smoke test
+        run: |
+          cc tests/c/ffi_smoke.c -I rust/include -L rust/target/debug -Wl,-rpath,"$PWD/rust/target/debug" -lopaque_ffi -o /tmp/ffi_smoke
+          /tmp/ffi_smoke
+
+  swift-package:
+    name: Swift Package
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Swift package
+        run: swift build
 
   security-docs:
     name: Security Documentation

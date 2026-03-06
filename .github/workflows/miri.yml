@@ -1,0 +1,29 @@
+name: Miri
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  miri-safe-crates:
+    name: Miri Safe Crates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-03-01
+          components: miri
+      - name: Set up Miri
+        working-directory: rust
+        run: cargo miri setup
+      - name: Run Miri on opaque-core
+        working-directory: rust
+        run: cargo miri test -p opaque-core --lib --locked
+      - name: Run Miri on opaque-agent
+        working-directory: rust
+        run: cargo miri test -p opaque-agent --lib --locked
+      - name: Run Miri on opaque-relay
+        working-directory: rust
+        run: cargo miri test -p opaque-relay --lib --locked

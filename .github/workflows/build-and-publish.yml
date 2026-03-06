@@ -13,6 +13,8 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
+  attestations: write
 
 jobs:
   build-native:
@@ -36,8 +38,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.93.1
           targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
@@ -69,8 +72,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.93.1
           targets: aarch64-apple-darwin,aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
 
       - uses: swift-actions/setup-swift@v2
@@ -85,11 +89,13 @@ jobs:
           cargo build --release --package opaque-ffi --target aarch64-apple-ios-sim
           cargo build --release --package opaque-ffi --target x86_64-apple-ios
 
-      - name: Generate C header via cbindgen
-        working-directory: rust
+      - name: Stage curated public headers
         run: |
-          cargo install cbindgen --locked
-          cbindgen --crate opaque-ffi --output target/include/opaque_ffi.h
+          rm -rf rust/target/include
+          mkdir -p rust/target/include
+          cp rust/include/*.h rust/target/include/
+          cp rust/include/module.modulemap rust/target/include/module.modulemap
+          ls -la rust/target/include
 
       - name: Create fat simulator library
         run: |
@@ -106,14 +112,22 @@ jobs:
             -library rust/target/aarch64-apple-ios/release/libopaque_ffi.a -headers rust/target/include \
             -library rust/target/libopaque_ffi_sim.a -headers rust/target/include \
             -output dist/apple/EcliptixOPAQUE.xcframework
+          test -f dist/apple/EcliptixOPAQUE.xcframework/macos-arm64/Headers/opaque_api.h
+          test -f dist/apple/EcliptixOPAQUE.xcframework/macos-arm64/Headers/opaque_relay.h
+          test -f dist/apple/EcliptixOPAQUE.xcframework/macos-arm64/Headers/module.modulemap
           cd dist/apple && zip -r EcliptixOPAQUE.xcframework.zip EcliptixOPAQUE.xcframework
-          shasum -a 256 EcliptixOPAQUE.xcframework.zip > EcliptixOPAQUE.xcframework.zip.sha256
+          swift package compute-checksum EcliptixOPAQUE.xcframework.zip > EcliptixOPAQUE.xcframework.zip.checksum
 
       - uses: actions/upload-artifact@v4
         with:
           name: apple-xcframework
           path: dist/apple/
           retention-days: 30
+
+      - name: Attest Apple XCFramework
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/apple/EcliptixOPAQUE.xcframework.zip
 
   publish-release:
     name: GitHub Release
@@ -134,12 +148,16 @@ jobs:
           VERSION="${{ github.ref_name }}"
           echo "VERSION=${VERSION#v}" >> $GITHUB_OUTPUT
 
+      - name: Read checksum
+        id: checksum
+        run: echo "value=$(cat artifacts/apple-xcframework/EcliptixOPAQUE.xcframework.zip.checksum | tr -d '[:space:]')" >> $GITHUB_OUTPUT
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/apple-xcframework/EcliptixOPAQUE.xcframework.zip
-            artifacts/apple-xcframework/EcliptixOPAQUE.xcframework.zip.sha256
+            artifacts/apple-xcframework/EcliptixOPAQUE.xcframework.zip.checksum
           body: |
             ## Ecliptix OPAQUE v${{ steps.version.outputs.VERSION }}
 
@@ -148,7 +166,7 @@ jobs:
             .binaryTarget(
                 name: "EcliptixOPAQUEBinary",
                 url: "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/EcliptixOPAQUE.xcframework.zip",
-                checksum: "$(cat artifacts/apple-xcframework/EcliptixOPAQUE.xcframework.zip.sha256 | cut -d' ' -f1)"
+                checksum: "${{ steps.checksum.outputs.value }}"
             )
             ```
 

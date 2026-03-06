@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Oleksandr Melnychenko. All rights reserved.
 // SPDX-License-Identifier: MIT
 
+#![forbid(unsafe_code)]
+
 mod authentication;
 
 mod registration;

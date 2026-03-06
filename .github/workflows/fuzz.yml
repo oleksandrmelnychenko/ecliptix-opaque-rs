@@ -1,0 +1,27 @@
+name: Fuzz
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  cargo-fuzz:
+    name: Cargo Fuzz Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-03-01
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: Run parser fuzz smoke
+        working-directory: rust/fuzz
+        run: |
+          cargo fuzz run parse_ke1 -- -max_total_time=15
+          cargo fuzz run parse_ke2 -- -max_total_time=15
+          cargo fuzz run parse_registration_record -- -max_total_time=15
+      - name: Run FFI length fuzz smoke
+        working-directory: rust/fuzz
+        run: cargo fuzz run ffi_lengths -- -max_total_time=15

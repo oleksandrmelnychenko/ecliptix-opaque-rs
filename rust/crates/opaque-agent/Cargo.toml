@@ -14,6 +14,7 @@ workspace = true
 [dev-dependencies]
 opaque-relay = { workspace = true }
 opaque-core = { workspace = true }
+curve25519-dalek = { workspace = true }
 criterion = { workspace = true }
 proptest = { workspace = true }
 

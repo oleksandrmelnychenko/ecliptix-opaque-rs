@@ -1,0 +1,23 @@
+name: Sanitizers
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  address-sanitizer:
+    name: Address Sanitizer
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-Z sanitizer=address"
+      RUSTDOCFLAGS: "-Z sanitizer=address"
+      ASAN_OPTIONS: "detect_leaks=0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-03-01
+      - name: Run opaque-ffi tests under ASan
+        working-directory: rust
+        run: cargo test -p opaque-ffi --tests --target x86_64-unknown-linux-gnu --locked

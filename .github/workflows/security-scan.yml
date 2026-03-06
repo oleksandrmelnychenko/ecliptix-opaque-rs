@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   schedule:
     - cron: '0 0 * * 0'
   workflow_dispatch:
@@ -21,24 +21,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.1
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
       - name: Run cargo audit
         working-directory: rust
-        run: cargo audit
+        run: cargo audit --deny warnings
 
   cargo-deny:
     name: Cargo Deny
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.1
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           manifest-path: rust/Cargo.toml
           command: check
-          command-arguments: --hide-inclusion-graph
-        continue-on-error: true
+          command-arguments: --hide-inclusion-graph --config deny.toml advisories bans licenses sources
 
   secret-scan:
     name: Secret Scanning
@@ -68,7 +72,9 @@ jobs:
           echo "LICENSE file found"
           head -5 LICENSE
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.1
 
       - name: Check Rust dependency licenses
         working-directory: rust

@@ -316,6 +316,35 @@ pub unsafe extern "C" fn opaque_relay_keypair_get_public_key(
     .unwrap_or(FFI_PANIC)
 }
 
+/// Copies the relay's 32-byte OPRF seed into the provided buffer.
+///
+/// Persist this seed alongside the relay's static keypair. Existing registration
+/// records cannot be used after restart unless the same OPRF seed is restored.
+///
+/// # Safety
+///
+/// `handle` must be a valid, non-null pointer to a `RelayKeypairHandle` previously
+/// returned by `opaque_relay_keypair_generate`. `oprf_seed` must point to a buffer
+/// of at least `OPRF_SEED_LENGTH` (32) bytes.
+#[no_mangle]
+pub unsafe extern "C" fn opaque_relay_keypair_get_oprf_seed(
+    handle: *mut std::ffi::c_void,
+    oprf_seed: *mut u8,
+    seed_buffer_size: usize,
+) -> i32 {
+    panic::catch_unwind(AssertUnwindSafe(|| {
+        if oprf_seed.is_null() || seed_buffer_size < OPRF_SEED_LENGTH {
+            return OpaqueError::InvalidInput.to_c_int();
+        }
+        let Some((kh, _kg)) = acquire_relay_keypair(handle) else {
+            return FFI_BUSY;
+        };
+        ptr::copy_nonoverlapping(kh.oprf_seed.as_ptr(), oprf_seed, OPRF_SEED_LENGTH);
+        0
+    }))
+    .unwrap_or(FFI_PANIC)
+}
+
 /// Creates a relay handle from a previously generated keypair.
 ///
 /// The relay handle is the main server-side object used for registration and
@@ -910,4 +939,10 @@ pub extern "C" fn opaque_relay_get_registration_response_length() -> usize {
 #[no_mangle]
 pub extern "C" fn opaque_relay_get_kem_ciphertext_length() -> usize {
     pq::KEM_CIPHERTEXT_LENGTH
+}
+
+/// Returns `OPRF_SEED_LENGTH` (32). Use to allocate OPRF seed buffers.
+#[no_mangle]
+pub extern "C" fn opaque_relay_get_oprf_seed_length() -> usize {
+    OPRF_SEED_LENGTH
 }

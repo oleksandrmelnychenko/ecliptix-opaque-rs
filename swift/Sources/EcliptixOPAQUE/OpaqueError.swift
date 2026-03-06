@@ -40,7 +40,7 @@ public enum OpaqueError: Error, LocalizedError, Sendable {
         }
     }
 
-    /// Creates an `OpaqueError` from a C `COpaqueError` struct returned by the library.
+    /// Creates an `OpaqueError` from a C `OpaqueError` struct returned by the library.
     ///
     /// Reads `error.message` for a detailed description (if present), then frees the
     /// library-allocated string via `opaque_error_free`.
@@ -49,12 +49,12 @@ public enum OpaqueError: Error, LocalizedError, Sendable {
         if let msg = error.message {
             detail = String(cString: msg)
             opaque_error_free(&error)
-        } else if let staticMsg = opaque_error_string(error.code) {
+        } else if let staticMsg = coOpaqueErrorStaticMessage(error.code) {
             detail = String(cString: staticMsg)
         } else {
-            detail = "code \(error.code)"
+            detail = "code \(coOpaqueErrorCodeRawValue(error.code))"
         }
-        return fromCode(error.code, detail: detail)
+        return fromCode(coOpaqueErrorCodeRawValue(error.code), detail: detail)
     }
 
     internal static func fromCode(_ code: Int32, detail: String = "") -> OpaqueError {
@@ -69,9 +69,11 @@ public enum OpaqueError: Error, LocalizedError, Sendable {
         case -7: return .invalidInput(detail.isEmpty ? "Account already registered" : detail)
         case -8: return .cryptoError(detail.isEmpty ? "Invalid KEM input" : detail)
         case -9: return .cryptoError(detail.isEmpty ? "Invalid envelope format" : detail)
+        case -10: return .invalidInput(detail.isEmpty ? "Unsupported protocol version" : detail)
         case -99:  return .cryptoError(detail.isEmpty ? "Internal FFI panic" : detail)
         case -100: return .invalidState
         default:   return .unknown(code)
         }
     }
 }
+

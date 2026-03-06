@@ -55,8 +55,8 @@
 | **Likelihood** | 3 |
 | **Impact** | 5 |
 | **Risk Score** | 15 (High) |
-| **Mitigation** | OPAQUE protocol ensures the server never sees the password. Registration records contain only OPRF-blinded values. Argon2id key stretching with configurable parameters. Formally verified offline dictionary resistance (Tamarin + ProVerif). |
-| **Residual Risk** | Low |
+| **Mitigation** | Registration records are not password-equivalent by themselves, and Argon2id raises per-guess cost. Offline resistance holds for database compromise **without** `oprf_seed` compromise. |
+| **Residual Risk** | Medium. Compromise of `oprf_seed` turns stolen registration records into an offline-verifiable target. |
 | **Owner** | Maintainer |
 
 ### R-004: Dependency Supply-Chain Compromise
@@ -68,7 +68,7 @@
 | **Likelihood** | 2 |
 | **Impact** | 5 |
 | **Risk Score** | 10 (Medium) |
-| **Mitigation** | Pure Rust with no C dependencies. `Cargo.lock` pins exact versions. `cargo audit` runs on every CI build. New dependencies require maintainer review. Minimal dependency tree. |
+| **Mitigation** | Pure Rust with no C dependencies. `Cargo.lock` pins exact versions. Blocking `cargo audit`, blocking `cargo-deny`, pinned Rust toolchain, and Dependabot coverage for Cargo + GitHub Actions. |
 | **Residual Risk** | Low |
 | **Owner** | Maintainer |
 
@@ -81,7 +81,7 @@
 | **Likelihood** | 2 |
 | **Impact** | 4 |
 | **Risk Score** | 8 (Medium) |
-| **Mitigation** | All secret types implement `Zeroize` and `ZeroizeOnDrop`. Ephemeral keys are destroyed immediately after protocol completion. Release builds use `panic = abort` to prevent unwinding-based leaks. |
+| **Mitigation** | All secret types implement `Zeroize` and `ZeroizeOnDrop`. Ephemeral keys are destroyed immediately after protocol completion. The FFI layer catches panics and zeroizes owned handles on drop. |
 | **Residual Risk** | Low |
 | **Owner** | Maintainer |
 
@@ -94,7 +94,7 @@
 | **Likelihood** | 2 |
 | **Impact** | 4 |
 | **Risk Score** | 8 (Medium) |
-| **Mitigation** | Strict state machine with phase tracking (`InitiatorPhase`, `ResponderPhase`). State expiry after `STATE_MAX_LIFETIME_SECS`. Wire protocol versioning rejects mismatched versions. Mutual authentication formally verified. |
+| **Mitigation** | Strict state machine with phase tracking (`InitiatorPhase`, `ResponderPhase`). State expiry after `STATE_MAX_LIFETIME_SECS`. Wire protocol versioning rejects mismatched versions. Regression tests cover failed-KE3 terminal state reuse. |
 | **Residual Risk** | Low |
 | **Owner** | Maintainer |
 
@@ -120,7 +120,7 @@
 | **Likelihood** | 2 |
 | **Impact** | 4 |
 | **Risk Score** | 8 (Medium) |
-| **Mitigation** | Minimal CI permissions. No secrets in workflow logs. Branch protection rules on `main`. Two-factor authentication required for maintainers. |
+| **Mitigation** | Minimal CI permissions. No secrets in workflow logs. Branch protection rules on `main`. Artifact checksum generation and build attestation are part of the release pipeline. |
 | **Residual Risk** | Low |
 | **Owner** | Maintainer |
 

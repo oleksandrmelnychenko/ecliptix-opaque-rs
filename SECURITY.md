@@ -64,11 +64,12 @@ You should receive a response within 48 hours.
 1. **Always use TLS** for transport layer security
 2. **Implement rate limiting** at the application layer
 3. **Secure storage** for relay private keys and registration records
-4. **Regular updates** via `cargo audit`
+4. **Protect `oprf_seed` like a master secret**; DB-only compromise and `oprf_seed` compromise have different consequences
+5. **Regular updates** via `cargo audit`
 
 ## Formal Verification
 
-Seven security properties verified by Tamarin Prover (8/8 lemmas) and ProVerif (5/5 queries). See `formal/logs/` for verification transcripts.
+Symbolic models in `formal/` provide protocol evidence, but they are not an exact proof of the shipping Rust/FFI implementation. See `formal/logs/` and `docs/security-review/THREAT_MODEL.md` for the exact boundary.
 
 ## References
 
