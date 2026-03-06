@@ -3,98 +3,53 @@
 
 //! # Agent (Client) FFI — for Swift / mobile integration
 //!
-//! This module provides the client-side OPAQUE API. A typical iOS/macOS app
-//! imports the generated C header and calls these functions through Swift's
-//! C interop.
+//! Provides the client-side OPAQUE API over C FFI. A typical iOS/macOS app
+//! imports `opaque_agent.h` and calls these functions through Swift's C interop.
 //!
 //! ## Lifecycle overview
 //!
 //! ```text
 //! ┌─────────────────────── SETUP ───────────────────────┐
 //! │ opaque_init()                                       │
-//! │ opaque_agent_create(relay_pk, 32, &handle)          │
-//! │ opaque_agent_state_create(&state)                   │
+//! │ opaque_agent_create(relay_pk, 32, &handle, NULL)    │
+//! │ opaque_agent_state_create(&state, NULL)             │
 //! └─────────────────────────────────────────────────────┘
 //!
 //! ┌─────────────── REGISTRATION (one-time) ─────────────┐
-//! │ opaque_agent_create_registration_request(            │
-//! │     handle, password, password_len,                  │
-//! │     state, &request[33], 33)                         │
-//! │                                                      │
-//! │         ──── send request[33] to server ────►        │
-//! │         ◄─── receive response[65] ──────────         │
-//! │                                                      │
-//! │ opaque_agent_finalize_registration(                   │
-//! │     handle, response, 65, state, &record[169], 169)  │
-//! │                                                      │
-//! │         ──── send record[169] to server ────►        │
-//! └──────────────────────────────────────────────────────┘
+//! │ opaque_agent_create_registration_request(           │
+//! │     handle, password, len,                          │
+//! │     state, request_buf, 33, NULL)                   │
+//! │         ──── send 33 bytes to server ───►           │
+//! │         ◄─── receive 65 bytes ──────────            │
+//! │ opaque_agent_finalize_registration(                 │
+//! │     handle, response, 65,                           │
+//! │     state, record_buf, 169, NULL)                   │
+//! │         ──── send 169 bytes to server ──►           │
+//! └─────────────────────────────────────────────────────┘
 //!
 //! ┌─────────────── AUTHENTICATION (each login) ─────────┐
-//! │ opaque_agent_state_create(&state)   // fresh state   │
-//! │                                                      │
-//! │ opaque_agent_generate_ke1(                           │
-//! │     handle, password, password_len,                  │
-//! │     state, &ke1[1273], 1273)                         │
-//! │                                                      │
-//! │         ──── send ke1[1273] to server ────►          │
-//! │         ◄─── receive ke2[1377] ──────────            │
-//! │                                                      │
-//! │ opaque_agent_generate_ke3(                           │
-//! │     handle, ke2, 1377, state, &ke3[65], 65)          │
-//! │                                                      │
-//! │         ──── send ke3[65] to server ────►            │
-//! │                                                      │
-//! │ opaque_agent_finish(                                 │
-//! │     handle, state,                                   │
-//! │     &session_key[64], 64,                            │
-//! │     &master_key[32], 32)                             │
-//! └──────────────────────────────────────────────────────┘
+//! │ opaque_agent_state_create(&state, NULL)  // fresh   │
+//! │ opaque_agent_generate_ke1(                          │
+//! │     handle, password, len,                          │
+//! │     state, ke1_buf, 1273, NULL)                     │
+//! │         ──── send 1273 bytes to server ──►          │
+//! │         ◄─── receive 1377 bytes ──────────          │
+//! │ opaque_agent_generate_ke3(                          │
+//! │     handle, ke2, 1377,                              │
+//! │     state, ke3_buf, 65, NULL)                       │
+//! │         ──── send 65 bytes to server ───►           │
+//! │ opaque_agent_finish(                                │
+//! │     handle, state,                                  │
+//! │     session_key_buf, 64,                            │
+//! │     master_key_buf, 32, NULL)                       │
+//! └─────────────────────────────────────────────────────┘
 //!
 //! ┌─────────────────── CLEANUP ─────────────────────────┐
-//! │ opaque_agent_state_destroy(&state)                   │
-//! │ opaque_agent_destroy(&handle)                        │
-//! └──────────────────────────────────────────────────────┘
-//! ```
-//!
-//! ## Swift usage example
-//!
-//! ```swift
-//! // Setup
-//! opaque_init()
-//!
-//! var agentHandle: UnsafeMutableRawPointer?
-//! let relayPk: [UInt8] = ... // 32 bytes from server
-//! opaque_agent_create(relayPk, relayPk.count, &agentHandle)
-//!
-//! var stateHandle: UnsafeMutableRawPointer?
-//! opaque_agent_state_create(&stateHandle)
-//!
-//! // Authentication
-//! let password = Array("hunter2".utf8)
-//! var ke1 = [UInt8](repeating: 0, count: Int(opaque_get_ke1_length()))
-//! opaque_agent_generate_ke1(agentHandle, password, password.count,
-//!                           stateHandle, &ke1, ke1.count)
-//!
-//! // ... send ke1 to server, receive ke2 ...
-//!
-//! var ke3 = [UInt8](repeating: 0, count: Int(opaque_get_ke3_length()))
-//! opaque_agent_generate_ke3(agentHandle, ke2, ke2.count,
-//!                           stateHandle, &ke3, ke3.count)
-//!
-//! // ... send ke3 to server ...
-//!
-//! var sessionKey = [UInt8](repeating: 0, count: 64)
-//! var masterKey  = [UInt8](repeating: 0, count: 32)
-//! opaque_agent_finish(agentHandle, stateHandle,
-//!                     &sessionKey, 64, &masterKey, 32)
-//!
-//! // Cleanup
-//! opaque_agent_state_destroy(&stateHandle)
-//! opaque_agent_destroy(&agentHandle)
+//! │ opaque_agent_state_destroy(&state)                  │
+//! │ opaque_agent_destroy(&handle)                       │
+//! └─────────────────────────────────────────────────────┘
 //! ```
 
-use std::panic::{self, AssertUnwindSafe};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -107,38 +62,40 @@ use opaque_agent::{
 };
 use opaque_core::protocol;
 use opaque_core::types::{
-    pq, OpaqueError, HASH_LENGTH, KE1_LENGTH, KE2_LENGTH, KE3_LENGTH, MASTER_KEY_LENGTH,
-    PUBLIC_KEY_LENGTH, REGISTRATION_RECORD_LENGTH, REGISTRATION_REQUEST_WIRE_LENGTH,
+    pq, HASH_LENGTH, KE1_LENGTH, KE2_LENGTH, KE3_LENGTH, MASTER_KEY_LENGTH, PUBLIC_KEY_LENGTH,
+    REGISTRATION_RECORD_LENGTH, REGISTRATION_REQUEST_WIRE_LENGTH,
     REGISTRATION_RESPONSE_WIRE_LENGTH,
 };
 
-use crate::result_to_int;
+use crate::{ffi_catch_panic, write_core_error, write_error, OpaqueError, OpaqueErrorCode};
 
-const FFI_PANIC: i32 = -99;
+// ── Typed handle types ────────────────────────────────────────────────────────
 
-const FFI_BUSY: i32 = -100;
-
-struct AgentHandle {
+/// Typed agent handle. Forward-declared as `struct OpaqueAgentHandle` in C.
+pub struct OpaqueAgentHandle {
     initiator: OpaqueInitiator,
-    in_use: AtomicBool,
+    in_use:    AtomicBool,
 }
 
-impl Drop for AgentHandle {
+impl Drop for OpaqueAgentHandle {
     fn drop(&mut self) {
         self.initiator.zeroize();
     }
 }
 
-struct AgentStateHandle {
-    state: InitiatorState,
+/// Typed per-flow state handle. Forward-declared as `struct OpaqueAgentStateHandle` in C.
+pub struct OpaqueAgentStateHandle {
+    state:  InitiatorState,
     in_use: AtomicBool,
 }
 
-impl Drop for AgentStateHandle {
+impl Drop for OpaqueAgentStateHandle {
     fn drop(&mut self) {
         self.state.zeroize();
     }
 }
+
+// ── Busy guard ────────────────────────────────────────────────────────────────
 
 struct BusyGuard<'a>(&'a AtomicBool);
 
@@ -148,110 +105,78 @@ impl Drop for BusyGuard<'_> {
     }
 }
 
-fn acquire_agent(
-    handle: *mut std::ffi::c_void,
-) -> Option<(&'static AgentHandle, BusyGuard<'static>)> {
+// ── Acquire helpers ───────────────────────────────────────────────────────────
+
+unsafe fn acquire_agent(
+    handle: *mut OpaqueAgentHandle,
+) -> Option<(&'static OpaqueAgentHandle, BusyGuard<'static>)> {
     if handle.is_null() {
         return None;
     }
-    let ptr = handle as *const AgentHandle;
-    let in_use = unsafe { &(*ptr).in_use };
+    let in_use = &(*handle).in_use;
     if in_use.swap(true, Ordering::Acquire) {
         return None;
     }
-    let guard = BusyGuard(in_use);
-    Some((unsafe { &*ptr }, guard))
+    Some((&*handle, BusyGuard(in_use)))
 }
 
-fn acquire_agent_state(
-    handle: *mut std::ffi::c_void,
-) -> Option<(&'static mut AgentStateHandle, BusyGuard<'static>)> {
+unsafe fn acquire_agent_state(
+    handle: *mut OpaqueAgentStateHandle,
+) -> Option<(&'static mut OpaqueAgentStateHandle, BusyGuard<'static>)> {
     if handle.is_null() {
         return None;
     }
-    let ptr = handle as *mut AgentStateHandle;
-    let in_use = unsafe { &*std::ptr::addr_of!((*ptr).in_use) };
+    let in_use = &*ptr::addr_of!((*handle).in_use);
     if in_use.swap(true, Ordering::Acquire) {
         return None;
     }
-    let guard = BusyGuard(in_use);
-    Some((unsafe { &mut *ptr }, guard))
+    Some((&mut *handle, BusyGuard(in_use)))
 }
 
-/// Initializes the OPAQUE library. Must be called once before any other function.
-///
-/// Returns `0` on success.
-#[no_mangle]
-pub extern "C" fn opaque_init() -> i32 {
-    0
-}
+// ── Handle management ─────────────────────────────────────────────────────────
 
-/// Creates a new agent (client) handle bound to a specific relay's public key.
-///
-/// The relay public key is a 32-byte Ristretto255 compressed point obtained from
-/// the server during initial setup (e.g., pinned in the app or fetched over TLS).
-///
-/// # Parameters
-///
-/// | Name             | Type            | Size    | Description                              |
-/// |------------------|-----------------|---------|------------------------------------------|
-/// | `relay_public_key` | `*const u8`   | 32      | Relay's static Ristretto255 public key   |
-/// | `key_length`     | `usize`         | —       | Must be exactly 32                       |
-/// | `handle`         | `*mut *mut void`| —       | Receives the new agent handle (out-param)|
-///
-/// # Returns
-///
-/// `0` on success, `-1` if inputs are invalid, `-6` if the public key is not a valid point.
-///
-/// # Ownership
-///
-/// The caller owns the returned handle and must free it with [`opaque_agent_destroy`].
+/// Creates a new agent handle bound to a specific relay's public key.
 ///
 /// # Safety
-///
-/// - `relay_public_key` must point to at least `PUBLIC_KEY_LENGTH` (32) readable bytes
-///   containing the relay's static public key.
-/// - `handle` must be a valid, non-null pointer to a `*mut c_void` that will receive the new
-///   agent handle. The caller owns the returned handle and must free it with
-///   `opaque_agent_destroy`.
+/// - `relay_public_key` must point to at least `key_length` readable bytes.
+/// - `out_handle` must be a valid non-null pointer that receives the new handle.
+/// - `out_error` must be null or point to a valid `OpaqueError`.
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_create(
     relay_public_key: *const u8,
-    key_length: usize,
-    handle: *mut *mut std::ffi::c_void,
-) -> i32 {
-    panic::catch_unwind(AssertUnwindSafe(|| {
-        if relay_public_key.is_null() || key_length != PUBLIC_KEY_LENGTH || handle.is_null() {
-            return OpaqueError::InvalidInput.to_c_int();
+    key_length:       usize,
+    out_handle:       *mut *mut OpaqueAgentHandle,
+    out_error:        *mut OpaqueError,
+) -> OpaqueErrorCode {
+    ffi_catch_panic!(out_error, {
+        if relay_public_key.is_null() || key_length != PUBLIC_KEY_LENGTH || out_handle.is_null() {
+            write_error(out_error, OpaqueErrorCode::InvalidInput, "invalid input");
+            return OpaqueErrorCode::InvalidInput;
         }
         let key = std::slice::from_raw_parts(relay_public_key, key_length);
         let initiator = match OpaqueInitiator::new(key) {
-            Ok(i) => i,
-            Err(e) => return e.to_c_int(),
+            Ok(i)  => i,
+            Err(e) => return write_core_error(out_error, e),
         };
-        let boxed = Box::new(AgentHandle {
+        let boxed = Box::new(OpaqueAgentHandle {
             initiator,
             in_use: AtomicBool::new(false),
         });
-        *handle = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        0
-    }))
-    .unwrap_or(FFI_PANIC)
+        *out_handle = Box::into_raw(boxed);
+        OpaqueErrorCode::Success
+    })
 }
 
 /// Destroys an agent handle, securely zeroizing all key material.
 ///
-/// After this call, `*handle_ptr` is set to null. Calling destroy on an already-null
-/// pointer is a safe no-op.
+/// Sets `*handle_ptr` to null. Safe to call on a null pointer.
 ///
 /// # Safety
-///
-/// `handle_ptr` must be a valid, non-null pointer to a `*mut c_void` that was
-/// previously set by `opaque_agent_create`. After this call the inner pointer
-/// is set to null, preventing double-free.
+/// `handle_ptr` must be null or point to a valid `OpaqueAgentHandle*` from
+/// `opaque_agent_create`.
 #[no_mangle]
-pub unsafe extern "C" fn opaque_agent_destroy(handle_ptr: *mut *mut std::ffi::c_void) {
-    let _ = panic::catch_unwind(AssertUnwindSafe(|| {
+pub unsafe extern "C" fn opaque_agent_destroy(handle_ptr: *mut *mut OpaqueAgentHandle) {
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         if handle_ptr.is_null() {
             return;
         }
@@ -259,63 +184,50 @@ pub unsafe extern "C" fn opaque_agent_destroy(handle_ptr: *mut *mut std::ffi::c_
         if handle.is_null() {
             return;
         }
-        let in_use = &(*(handle as *const AgentHandle)).in_use;
-        if in_use.swap(true, Ordering::Acquire) {
+        if (*handle).in_use.swap(true, Ordering::Acquire) {
             return;
         }
         *handle_ptr = ptr::null_mut();
-        drop(Box::from_raw(handle as *mut AgentHandle));
+        drop(Box::from_raw(handle));
     }));
 }
 
-/// Allocates a fresh agent state for one registration or authentication session.
-///
-/// Each protocol flow (registration or login) requires its own state. The state has a
-/// **5-minute lifetime** — if the protocol is not completed within that window, subsequent
-/// calls will return `-4` (validation error).
-///
-/// # Parameters
-///
-/// | Name     | Type            | Description                             |
-/// |----------|-----------------|---------------------------------------- |
-/// | `handle` | `*mut *mut void`| Receives the new state handle (out-param)|
-///
-/// # Returns
-///
-/// `0` on success. The caller must free the state with [`opaque_agent_state_destroy`].
+/// Allocates a fresh per-flow state for one registration or authentication attempt.
 ///
 /// # Safety
-///
-/// `handle` must be a valid, non-null pointer to a `*mut c_void` that will receive the newly
-/// allocated state. The caller owns the returned handle and must free it with
-/// `opaque_agent_state_destroy`.
+/// - `out_handle` must be a valid non-null pointer that receives the new state.
+/// - `out_error` must be null or point to a valid `OpaqueError`.
 #[no_mangle]
-pub unsafe extern "C" fn opaque_agent_state_create(handle: *mut *mut std::ffi::c_void) -> i32 {
-    panic::catch_unwind(AssertUnwindSafe(|| {
-        if handle.is_null() {
-            return OpaqueError::InvalidInput.to_c_int();
+pub unsafe extern "C" fn opaque_agent_state_create(
+    out_handle: *mut *mut OpaqueAgentStateHandle,
+    out_error:  *mut OpaqueError,
+) -> OpaqueErrorCode {
+    ffi_catch_panic!(out_error, {
+        if out_handle.is_null() {
+            write_error(out_error, OpaqueErrorCode::InvalidInput, "out_handle is null");
+            return OpaqueErrorCode::InvalidInput;
         }
-        let boxed = Box::new(AgentStateHandle {
-            state: InitiatorState::new(),
+        let boxed = Box::new(OpaqueAgentStateHandle {
+            state:  InitiatorState::new(),
             in_use: AtomicBool::new(false),
         });
-        *handle = Box::into_raw(boxed) as *mut std::ffi::c_void;
-        0
-    }))
-    .unwrap_or(FFI_PANIC)
+        *out_handle = Box::into_raw(boxed);
+        OpaqueErrorCode::Success
+    })
 }
 
-/// Destroys an agent state handle, securely zeroizing all cryptographic material
-/// (password, keys, nonces, shared secrets).
+/// Destroys a per-flow state, securely zeroizing all cryptographic material.
+///
+/// Sets `*handle_ptr` to null. Safe to call on a null pointer.
 ///
 /// # Safety
-///
-/// `handle_ptr` must be a valid, non-null pointer to a `*mut c_void` that was
-/// previously set by `opaque_agent_state_create`. After this call the inner
-/// pointer is set to null, preventing double-free.
+/// `handle_ptr` must be null or point to a valid `OpaqueAgentStateHandle*` from
+/// `opaque_agent_state_create`.
 #[no_mangle]
-pub unsafe extern "C" fn opaque_agent_state_destroy(handle_ptr: *mut *mut std::ffi::c_void) {
-    let _ = panic::catch_unwind(AssertUnwindSafe(|| {
+pub unsafe extern "C" fn opaque_agent_state_destroy(
+    handle_ptr: *mut *mut OpaqueAgentStateHandle,
+) {
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         if handle_ptr.is_null() {
             return;
         }
@@ -323,423 +235,322 @@ pub unsafe extern "C" fn opaque_agent_state_destroy(handle_ptr: *mut *mut std::f
         if handle.is_null() {
             return;
         }
-        let in_use = &(*(handle as *const AgentStateHandle)).in_use;
-        if in_use.swap(true, Ordering::Acquire) {
+        if (*handle).in_use.swap(true, Ordering::Acquire) {
             return;
         }
         *handle_ptr = ptr::null_mut();
-        drop(Box::from_raw(handle as *mut AgentStateHandle));
+        drop(Box::from_raw(handle));
     }));
 }
 
-/// **Registration step 1/2.** Creates an OPRF-blinded registration request from the
-/// user's password.
-///
-/// The output `request_out` (33 bytes) must be sent to the server, which will respond
-/// with a 65-byte registration response.
-///
-/// # Parameters
-///
-/// | Name               | Type          | Size        | Description                          |
-/// |--------------------|---------------|-------------|--------------------------------------|
-/// | `agent_handle`     | `*mut void`   | —           | Agent handle from `opaque_agent_create` |
-/// | `secure_key`       | `*const u8`   | 1–4096      | User's password (raw bytes)          |
-/// | `secure_key_length`| `usize`       | —           | Length of password in bytes           |
-/// | `state_handle`     | `*mut void`   | —           | Fresh state from `opaque_agent_state_create` |
-/// | `request_out`      | `*mut u8`     | ≥ 33        | Output buffer for the blinded request|
-/// | `request_length`   | `usize`       | —           | Size of output buffer (must be ≥ 33) |
-///
-/// # Returns
-///
-/// `0` on success. The 33-byte request is written to `request_out`.
+// ── Registration ──────────────────────────────────────────────────────────────
+
+/// Registration step 1/2. Produces a 33-byte OPRF-blinded registration request.
 ///
 /// # Safety
-///
-/// - `agent_handle` must be a valid pointer to an `AgentHandle` from `opaque_agent_create`.
-/// - `secure_key` must point to at least `secure_key_length` readable bytes (the user's
-///   password; non-zero length, max `MAX_SECURE_KEY_LENGTH`).
-/// - `state_handle` must be a valid pointer to an `AgentStateHandle` from
-///   `opaque_agent_state_create`.
-/// - `request_out` must point to a writable buffer of at least
-///   `REGISTRATION_REQUEST_WIRE_LENGTH` (33) bytes.
+/// All pointer parameters must be valid for their stated sizes.
+/// `out_error` must be null or point to a valid `OpaqueError`.
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_create_registration_request(
-    agent_handle: *mut std::ffi::c_void,
-    secure_key: *const u8,
-    secure_key_length: usize,
-    state_handle: *mut std::ffi::c_void,
-    request_out: *mut u8,
-    request_length: usize,
-) -> i32 {
-    panic::catch_unwind(AssertUnwindSafe(|| {
-        if agent_handle.is_null()
-            || secure_key.is_null()
-            || secure_key_length == 0
+    agent_handle:    *mut OpaqueAgentHandle,
+    password:        *const u8,
+    password_length: usize,
+    state_handle:    *mut OpaqueAgentStateHandle,
+    request_out:     *mut u8,
+    request_length:  usize,
+    out_error:       *mut OpaqueError,
+) -> OpaqueErrorCode {
+    ffi_catch_panic!(out_error, {
+        if password.is_null()
+            || password_length == 0
             || request_out.is_null()
             || request_length < REGISTRATION_REQUEST_WIRE_LENGTH
         {
-            return OpaqueError::InvalidInput.to_c_int();
+            write_error(out_error, OpaqueErrorCode::InvalidInput, "invalid input");
+            return OpaqueErrorCode::InvalidInput;
         }
 
+        let Some((_ah, _ag)) = acquire_agent(agent_handle) else {
+            write_error(out_error, OpaqueErrorCode::Busy, "agent handle busy");
+            return OpaqueErrorCode::Busy;
+        };
         let Some((sh, _sg)) = acquire_agent_state(state_handle) else {
-            return FFI_BUSY;
+            write_error(out_error, OpaqueErrorCode::Busy, "state handle busy");
+            return OpaqueErrorCode::Busy;
         };
 
-        let key = std::slice::from_raw_parts(secure_key, secure_key_length);
+        let key = std::slice::from_raw_parts(password, password_length);
         let mut request = RegistrationRequest::new();
 
-        let result = create_registration_request(key, &mut request, &mut sh.state);
-        if result.is_ok() {
-            let out = std::slice::from_raw_parts_mut(request_out, request_length);
-            if let Err(e) = protocol::write_registration_request(&request.data, out) {
-                return e.to_c_int();
+        match create_registration_request(key, &mut request, &mut sh.state) {
+            Ok(()) => {
+                let out = std::slice::from_raw_parts_mut(request_out, request_length);
+                match protocol::write_registration_request(&request.data, out) {
+                    Ok(()) => OpaqueErrorCode::Success,
+                    Err(e) => write_core_error(out_error, e),
+                }
             }
+            Err(e) => write_core_error(out_error, e),
         }
-        result_to_int(result)
-    }))
-    .unwrap_or(FFI_PANIC)
+    })
 }
 
-/// **Registration step 2/2.** Finalizes registration by creating an encrypted envelope
-/// (the registration record).
-///
-/// Takes the server's 65-byte registration response and produces a 169-byte registration
-/// record. The record must be sent to the server for storage — it contains the encrypted
-/// envelope and the client's static public key. The server cannot decrypt the envelope.
-///
-/// # Parameters
-///
-/// | Name              | Type          | Size   | Description                              |
-/// |-------------------|---------------|--------|------------------------------------------|
-/// | `agent_handle`    | `*mut void`   | —      | Agent handle from `opaque_agent_create`  |
-/// | `response`        | `*const u8`   | 65     | Server's registration response           |
-/// | `response_length` | `usize`       | —      | Must be exactly 65                       |
-/// | `state_handle`    | `*mut void`   | —      | Same state used in step 1                |
-/// | `record_out`      | `*mut u8`     | ≥ 169  | Output buffer for the registration record|
-/// | `record_length`   | `usize`       | —      | Size of output buffer (must be ≥ 169)    |
-///
-/// # Returns
-///
-/// `0` on success. The 169-byte record is written to `record_out`.
-/// Returns `-5` if the server's public key in the response does not match the one
-/// provided at agent creation (MITM protection).
+/// Registration step 2/2. Creates the 169-byte encrypted registration record.
 ///
 /// # Safety
-///
-/// - `agent_handle` must be a valid pointer to an `AgentHandle` from `opaque_agent_create`.
-/// - `response` must point to at least `REGISTRATION_RESPONSE_WIRE_LENGTH` (65) readable bytes.
-/// - `state_handle` must be a valid pointer to an `AgentStateHandle` used in the prior
-///   `opaque_agent_create_registration_request` call.
-/// - `record_out` must point to a writable buffer of at least
-///   `REGISTRATION_RECORD_LENGTH` bytes.
+/// All pointer parameters must be valid for their stated sizes.
+/// `out_error` must be null or point to a valid `OpaqueError`.
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_finalize_registration(
-    agent_handle: *mut std::ffi::c_void,
-    response: *const u8,
+    agent_handle:    *mut OpaqueAgentHandle,
+    response:        *const u8,
     response_length: usize,
-    state_handle: *mut std::ffi::c_void,
-    record_out: *mut u8,
-    record_length: usize,
-) -> i32 {
-    panic::catch_unwind(AssertUnwindSafe(|| {
+    state_handle:    *mut OpaqueAgentStateHandle,
+    record_out:      *mut u8,
+    record_length:   usize,
+    out_error:       *mut OpaqueError,
+) -> OpaqueErrorCode {
+    ffi_catch_panic!(out_error, {
         if response.is_null()
             || response_length != REGISTRATION_RESPONSE_WIRE_LENGTH
             || record_out.is_null()
             || record_length < REGISTRATION_RECORD_LENGTH
         {
-            return OpaqueError::InvalidInput.to_c_int();
+            write_error(out_error, OpaqueErrorCode::InvalidInput, "invalid input");
+            return OpaqueErrorCode::InvalidInput;
         }
 
         let Some((ah, _ag)) = acquire_agent(agent_handle) else {
-            return FFI_BUSY;
+            write_error(out_error, OpaqueErrorCode::Busy, "agent handle busy");
+            return OpaqueErrorCode::Busy;
         };
         let Some((sh, _sg)) = acquire_agent_state(state_handle) else {
-            return FFI_BUSY;
+            write_error(out_error, OpaqueErrorCode::Busy, "state handle busy");
+            return OpaqueErrorCode::Busy;
         };
 
         let resp = std::slice::from_raw_parts(response, response_length);
         let mut record = RegistrationRecord::new();
 
-        let result = match finalize_registration(&ah.initiator, resp, &mut sh.state, &mut record) {
+        match finalize_registration(&ah.initiator, resp, &mut sh.state, &mut record) {
             Ok(()) => {
                 let out = std::slice::from_raw_parts_mut(record_out, record_length);
-                protocol::write_registration_record(
+                match protocol::write_registration_record(
                     &record.envelope,
                     &record.initiator_public_key,
                     out,
-                )
+                ) {
+                    Ok(()) => OpaqueErrorCode::Success,
+                    Err(e) => write_core_error(out_error, e),
+                }
             }
-            Err(e) => Err(e),
-        };
-        result_to_int(result)
-    }))
-    .unwrap_or(FFI_PANIC)
+            Err(e) => write_core_error(out_error, e),
+        }
+    })
 }
 
-/// **Authentication step 1/3.** Generates the first key-exchange message (KE1).
-///
-/// Produces a 1273-byte KE1 message containing:
-/// - Protocol version prefix (1 byte)
-/// - OPRF-blinded credential request (32 bytes)
-/// - Ephemeral Ristretto255 public key (32 bytes)
-/// - Random nonce (24 bytes)
-/// - Ephemeral ML-KEM-768 public key (1184 bytes)
-///
-/// The KE1 must be sent to the server along with the user's account identifier.
-///
-/// # Parameters
-///
-/// | Name               | Type          | Size        | Description                          |
-/// |--------------------|---------------|-------------|--------------------------------------|
-/// | `agent_handle`     | `*mut void`   | —           | Agent handle from `opaque_agent_create` |
-/// | `secure_key`       | `*const u8`   | 1–4096      | User's password (raw bytes)          |
-/// | `secure_key_length`| `usize`       | —           | Length of password in bytes           |
-/// | `state_handle`     | `*mut void`   | —           | Fresh state from `opaque_agent_state_create` |
-/// | `ke1_out`          | `*mut u8`     | ≥ 1273      | Output buffer for KE1 message        |
-/// | `ke1_length`       | `usize`       | —           | Size of output buffer (must be ≥ 1273)|
-///
-/// # Returns
-///
-/// `0` on success. The 1273-byte KE1 is written to `ke1_out`.
+// ── Authentication ────────────────────────────────────────────────────────────
+
+/// Authentication step 1/3. Produces the 1273-byte KE1 message.
 ///
 /// # Safety
-///
-/// - `secure_key` must point to at least `secure_key_length` readable bytes (the user's
-///   password; non-zero length, max `MAX_SECURE_KEY_LENGTH`).
-/// - `state_handle` must be a valid pointer to an `AgentStateHandle` from
-///   `opaque_agent_state_create`.
-/// - `ke1_out` must point to a writable buffer of at least `KE1_LENGTH` bytes.
+/// All pointer parameters must be valid for their stated sizes.
+/// `out_error` must be null or point to a valid `OpaqueError`.
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_generate_ke1(
-    agent_handle: *mut std::ffi::c_void,
-    secure_key: *const u8,
-    secure_key_length: usize,
-    state_handle: *mut std::ffi::c_void,
-    ke1_out: *mut u8,
-    ke1_length: usize,
-) -> i32 {
-    panic::catch_unwind(AssertUnwindSafe(|| {
+    agent_handle:    *mut OpaqueAgentHandle,
+    password:        *const u8,
+    password_length: usize,
+    state_handle:    *mut OpaqueAgentStateHandle,
+    ke1_out:         *mut u8,
+    ke1_length:      usize,
+    out_error:       *mut OpaqueError,
+) -> OpaqueErrorCode {
+    ffi_catch_panic!(out_error, {
         if agent_handle.is_null()
-            || secure_key.is_null()
-            || secure_key_length == 0
+            || password.is_null()
+            || password_length == 0
             || ke1_out.is_null()
             || ke1_length < KE1_LENGTH
         {
-            return OpaqueError::InvalidInput.to_c_int();
+            write_error(out_error, OpaqueErrorCode::InvalidInput, "invalid input");
+            return OpaqueErrorCode::InvalidInput;
         }
 
+        let Some((_ah, _ag)) = acquire_agent(agent_handle) else {
+            write_error(out_error, OpaqueErrorCode::Busy, "agent handle busy");
+            return OpaqueErrorCode::Busy;
+        };
         let Some((sh, _sg)) = acquire_agent_state(state_handle) else {
-            return FFI_BUSY;
+            write_error(out_error, OpaqueErrorCode::Busy, "state handle busy");
+            return OpaqueErrorCode::Busy;
         };
 
-        let key = std::slice::from_raw_parts(secure_key, secure_key_length);
+        let key = std::slice::from_raw_parts(password, password_length);
         let mut ke1 = Ke1Message::new();
 
-        let result = match generate_ke1(key, &mut ke1, &mut sh.state) {
+        match generate_ke1(key, &mut ke1, &mut sh.state) {
             Ok(()) => {
                 let out = std::slice::from_raw_parts_mut(ke1_out, ke1_length);
-                protocol::write_ke1(
+                match protocol::write_ke1(
                     &ke1.credential_request,
                     &ke1.initiator_public_key,
                     &ke1.initiator_nonce,
                     &ke1.pq_ephemeral_public_key,
                     out,
-                )
+                ) {
+                    Ok(()) => OpaqueErrorCode::Success,
+                    Err(e) => write_core_error(out_error, e),
+                }
             }
-            Err(e) => Err(e),
-        };
-        result_to_int(result)
-    }))
-    .unwrap_or(FFI_PANIC)
+            Err(e) => write_core_error(out_error, e),
+        }
+    })
 }
 
-/// **Authentication step 2/3.** Processes the server's KE2 and produces KE3.
+/// Authentication step 2/3. Processes KE2 and produces the 65-byte KE3.
 ///
-/// This is the core authentication step. It:
-/// 1. Unblinds the OPRF output and derives the randomized password via Argon2id
-/// 2. Decrypts the envelope to recover the client's static keys
-/// 3. Performs 4-way Diffie-Hellman (3DH + ephemeral-ephemeral)
-/// 4. Decapsulates the ML-KEM-768 ciphertext
-/// 5. Combines classical and post-quantum key material (AND-model)
-/// 6. Verifies the server's MAC (mutual authentication)
-/// 7. Computes the client's MAC for the server to verify
-///
-/// If the password is wrong, envelope decryption fails and returns `-5`.
-///
-/// # Parameters
-///
-/// | Name           | Type          | Size   | Description                           |
-/// |----------------|---------------|--------|---------------------------------------|
-/// | `agent_handle` | `*mut void`   | —      | Agent handle from `opaque_agent_create`|
-/// | `ke2`          | `*const u8`   | 1377   | Server's KE2 message                 |
-/// | `ke2_length`   | `usize`       | —      | Must be exactly 1377                  |
-/// | `state_handle` | `*mut void`   | —      | Same state used in `generate_ke1`     |
-/// | `ke3_out`      | `*mut u8`     | ≥ 65   | Output buffer for KE3 message         |
-/// | `ke3_length`   | `usize`       | —      | Size of output buffer (must be ≥ 65)  |
-///
-/// # Returns
-///
-/// `0` on success. The 65-byte KE3 is written to `ke3_out`.
-/// Returns `-5` if authentication fails (wrong password or tampered KE2).
+/// Returns `OpaqueErrorCode::AuthFailed` if the password is wrong or KE2 is tampered.
 ///
 /// # Safety
-///
-/// - `agent_handle` must be a valid pointer to an `AgentHandle` from `opaque_agent_create`.
-/// - `ke2` must point to at least `KE2_LENGTH` readable bytes.
-/// - `state_handle` must be a valid pointer to an `AgentStateHandle` used in the prior
-///   `opaque_agent_generate_ke1` call.
-/// - `ke3_out` must point to a writable buffer of at least `KE3_LENGTH` bytes.
+/// All pointer parameters must be valid for their stated sizes.
+/// `out_error` must be null or point to a valid `OpaqueError`.
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_generate_ke3(
-    agent_handle: *mut std::ffi::c_void,
-    ke2: *const u8,
-    ke2_length: usize,
-    state_handle: *mut std::ffi::c_void,
-    ke3_out: *mut u8,
-    ke3_length: usize,
-) -> i32 {
-    panic::catch_unwind(AssertUnwindSafe(|| {
+    agent_handle: *mut OpaqueAgentHandle,
+    ke2:          *const u8,
+    ke2_length:   usize,
+    state_handle: *mut OpaqueAgentStateHandle,
+    ke3_out:      *mut u8,
+    ke3_length:   usize,
+    out_error:    *mut OpaqueError,
+) -> OpaqueErrorCode {
+    ffi_catch_panic!(out_error, {
         if ke2.is_null() || ke2_length != KE2_LENGTH || ke3_out.is_null() || ke3_length < KE3_LENGTH
         {
-            return OpaqueError::InvalidInput.to_c_int();
+            write_error(out_error, OpaqueErrorCode::InvalidInput, "invalid input");
+            return OpaqueErrorCode::InvalidInput;
         }
 
         let Some((ah, _ag)) = acquire_agent(agent_handle) else {
-            return FFI_BUSY;
+            write_error(out_error, OpaqueErrorCode::Busy, "agent handle busy");
+            return OpaqueErrorCode::Busy;
         };
         let Some((sh, _sg)) = acquire_agent_state(state_handle) else {
-            return FFI_BUSY;
+            write_error(out_error, OpaqueErrorCode::Busy, "state handle busy");
+            return OpaqueErrorCode::Busy;
         };
 
-        let ke2 = std::slice::from_raw_parts(ke2, ke2_length);
+        let ke2_slice = std::slice::from_raw_parts(ke2, ke2_length);
         let mut ke3 = Ke3Message::new();
 
-        let result = match generate_ke3(&ah.initiator, ke2, &mut sh.state, &mut ke3) {
+        match generate_ke3(&ah.initiator, ke2_slice, &mut sh.state, &mut ke3) {
             Ok(()) => {
                 let out = std::slice::from_raw_parts_mut(ke3_out, ke3_length);
-                protocol::write_ke3(&ke3.initiator_mac, out)
+                match protocol::write_ke3(&ke3.initiator_mac, out) {
+                    Ok(()) => OpaqueErrorCode::Success,
+                    Err(e) => write_core_error(out_error, e),
+                }
             }
-            Err(e) => Err(e),
-        };
-        result_to_int(result)
-    }))
-    .unwrap_or(FFI_PANIC)
+            Err(e) => write_core_error(out_error, e),
+        }
+    })
 }
 
-/// **Authentication step 3/3.** Extracts the session key and master key after a
-/// successful handshake.
+/// Authentication step 3/3. Extracts the session key (64 bytes) and master key (32 bytes).
 ///
-/// Call this after `opaque_agent_generate_ke3` succeeds. The session key (64 bytes) and
-/// master key (32 bytes) are identical on both client and server, and can be used
-/// for subsequent symmetric encryption (e.g., AES-GCM, ChaCha20-Poly1305).
-///
-/// After this call, all sensitive state is securely zeroized.
-///
-/// # Parameters
-///
-/// | Name               | Type        | Size  | Description                              |
-/// |--------------------|-------------|-------|------------------------------------------|
-/// | `_agent_handle`    | `*mut void` | —     | Reserved (pass the agent handle)         |
-/// | `state_handle`     | `*mut void` | —     | Same state used in `generate_ke3`        |
-/// | `session_key_out`  | `*mut u8`   | ≥ 64  | Output buffer for the 64-byte session key|
-/// | `session_key_length`| `usize`    | —     | Size of session key buffer (must be ≥ 64)|
-/// | `master_key_out`   | `*mut u8`   | ≥ 32  | Output buffer for the 32-byte master key |
-/// | `master_key_length`| `usize`     | —     | Size of master key buffer (must be ≥ 32) |
-///
-/// # Returns
-///
-/// `0` on success. Both keys are written to their respective buffers.
+/// After this call all sensitive state is securely zeroized.
 ///
 /// # Safety
-///
-/// - `state_handle` must be a valid pointer to an `AgentStateHandle` used in the prior
-///   `opaque_agent_generate_ke3` call.
-/// - `session_key_out` must point to a writable buffer of at least `HASH_LENGTH` (64) bytes.
-/// - `master_key_out` must point to a writable buffer of at least `MASTER_KEY_LENGTH` (32)
-///   bytes.
+/// All pointer parameters must be valid for their stated sizes.
+/// `out_error` must be null or point to a valid `OpaqueError`.
 #[no_mangle]
 pub unsafe extern "C" fn opaque_agent_finish(
-    _agent_handle: *mut std::ffi::c_void,
-    state_handle: *mut std::ffi::c_void,
-    session_key_out: *mut u8,
+    _agent_handle:      *mut OpaqueAgentHandle,
+    state_handle:       *mut OpaqueAgentStateHandle,
+    session_key_out:    *mut u8,
     session_key_length: usize,
-    master_key_out: *mut u8,
-    master_key_length: usize,
-) -> i32 {
-    panic::catch_unwind(AssertUnwindSafe(|| {
+    master_key_out:     *mut u8,
+    master_key_length:  usize,
+    out_error:          *mut OpaqueError,
+) -> OpaqueErrorCode {
+    ffi_catch_panic!(out_error, {
         if session_key_out.is_null()
             || session_key_length < HASH_LENGTH
             || master_key_out.is_null()
             || master_key_length < MASTER_KEY_LENGTH
         {
-            return OpaqueError::InvalidInput.to_c_int();
+            write_error(out_error, OpaqueErrorCode::InvalidInput, "invalid input");
+            return OpaqueErrorCode::InvalidInput;
         }
 
         let Some((sh, _sg)) = acquire_agent_state(state_handle) else {
-            return FFI_BUSY;
+            write_error(out_error, OpaqueErrorCode::Busy, "state handle busy");
+            return OpaqueErrorCode::Busy;
         };
 
         let mut session_key = [0u8; HASH_LENGTH];
-        let mut master_key = [0u8; MASTER_KEY_LENGTH];
+        let mut master_key  = [0u8; MASTER_KEY_LENGTH];
 
         let rc = match initiator_finish(&mut sh.state, &mut session_key, &mut master_key) {
             Ok(()) => {
                 ptr::copy_nonoverlapping(session_key.as_ptr(), session_key_out, HASH_LENGTH);
-                ptr::copy_nonoverlapping(master_key.as_ptr(), master_key_out, MASTER_KEY_LENGTH);
-                0
+                ptr::copy_nonoverlapping(master_key.as_ptr(),  master_key_out,  MASTER_KEY_LENGTH);
+                OpaqueErrorCode::Success
             }
-            Err(e) => e.to_c_int(),
+            Err(e) => write_core_error(out_error, e),
         };
         session_key.zeroize();
         master_key.zeroize();
         rc
-    }))
-    .unwrap_or(FFI_PANIC)
+    })
 }
 
-/// Returns `KE1_LENGTH` (1273). Use to allocate the KE1 output buffer.
+// ── Wire-size queries (infallible) ────────────────────────────────────────────
+
+/// Returns `OPAQUE_KE1_LENGTH` (1273).
 #[no_mangle]
 pub extern "C" fn opaque_get_ke1_length() -> usize {
     KE1_LENGTH
 }
 
-/// Returns `KE2_LENGTH` (1377). Use to validate incoming KE2 messages.
+/// Returns `OPAQUE_KE2_LENGTH` (1377).
 #[no_mangle]
 pub extern "C" fn opaque_get_ke2_length() -> usize {
     KE2_LENGTH
 }
 
-/// Returns `KE3_LENGTH` (65). Use to allocate the KE3 output buffer.
+/// Returns `OPAQUE_KE3_LENGTH` (65).
 #[no_mangle]
 pub extern "C" fn opaque_get_ke3_length() -> usize {
     KE3_LENGTH
 }
 
-/// Returns `REGISTRATION_RECORD_LENGTH` (169). Use to allocate the record output buffer.
+/// Returns `OPAQUE_REGISTRATION_RECORD_LENGTH` (169).
 #[no_mangle]
 pub extern "C" fn opaque_get_registration_record_length() -> usize {
     REGISTRATION_RECORD_LENGTH
 }
 
-/// Returns `REGISTRATION_REQUEST_WIRE_LENGTH` (33). Use to allocate the registration request buffer.
+/// Returns `OPAQUE_REGISTRATION_REQUEST_LENGTH` (33).
 #[no_mangle]
 pub extern "C" fn opaque_get_registration_request_length() -> usize {
     REGISTRATION_REQUEST_WIRE_LENGTH
 }
 
-/// Returns `REGISTRATION_RESPONSE_WIRE_LENGTH` (65). Expected size of incoming registration responses.
+/// Returns `OPAQUE_REGISTRATION_RESPONSE_LENGTH` (65).
 #[no_mangle]
 pub extern "C" fn opaque_get_registration_response_length() -> usize {
     REGISTRATION_RESPONSE_WIRE_LENGTH
 }
 
-/// Returns `KEM_PUBLIC_KEY_LENGTH` (1184). ML-KEM-768 public key size.
+/// Returns `OPAQUE_KEM_PUBLIC_KEY_LENGTH` (1184).
 #[no_mangle]
 pub extern "C" fn opaque_get_kem_public_key_length() -> usize {
     pq::KEM_PUBLIC_KEY_LENGTH
 }
 
-/// Returns `KEM_CIPHERTEXT_LENGTH` (1088). ML-KEM-768 ciphertext size.
+/// Returns `OPAQUE_KEM_CIPHERTEXT_LENGTH` (1088).
 #[no_mangle]
 pub extern "C" fn opaque_get_kem_ciphertext_length() -> usize {
     pq::KEM_CIPHERTEXT_LENGTH
